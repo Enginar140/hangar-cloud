@@ -8,7 +8,7 @@ Windows dahil her bilgisayardan tarayıcıyla kullanmanı sağlar. Canlı **3D g
 telemetrisi ve komutları, senaryolar, loglar ve QGroundControl / Mission Planner bağlantı
 bilgileri tek sayfada.
 
-![Tarayıcıda uçan bir quadcopter](docs/images/quad.jpg)
+![Tarayıcıda arkasından görülen, uçan bir quadcopter](docs/images/chase.jpg)
 
 > **Durum: erken sürüm (0.1).** Aynı anda tek kullanıcı. 3D görüntü, komutlar, senaryolar,
 > loglar ve MAVLink çıkışları çalışıyor. Tarayıcıda kamera görüntüsü, parametre düzenleyici ve
@@ -37,7 +37,7 @@ QGroundControl / script ◄──── MAVLink TCP ────  Bağlan sekmes
 
 | | |
 |---|---|
-| ![Yerde sabit kanat](docs/images/plane.jpg) | ![Loglar sekmesi](docs/images/logs.jpg) |
+| ![Pistte bir sabit kanat ve quadcopter, quadcopter'ın izi ile](docs/images/overview.jpg) | ![Aynı sayfa telefonda](docs/images/phone.jpg) |
 
 ## Gerekenler
 
@@ -118,12 +118,16 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 - Üstte **Start / Stop**. Çubuk simülasyon hızını gösterir (×1 = gerçek zaman). ArduPilot'un arm
   olabilmesi için bir süre *simülasyon* zamanı geçmesi gerekir, yavaş bir simülasyonda bu daha
   uzun sürer.
-- **Vehicles (Araçlar)**: her aracın durumu, modu, arm durumu, irtifası, hızı, bataryası, GPS'i ve
-  simülasyon hızı. Arm, disarm, kalkış, RTL ve iniş butonları; geri kalan her şey için bir komut
-  satırı: `mode GUIDED`, `takeoff 50`, `param set WPNAV_SPEED 800`.
+- **Vehicles (Araçlar)**: her araç için bir kart: irtifa, hız, yön, batarya, arm'a hazır olma,
+  GPS ve simülasyon hızı. Uçuş modunu aracın kendi listesinden seç, arm/disarm et, yazdığın
+  irtifaya kalkış yap, RTL, iniş; geri kalan her şey için komut satırı:
+  `param set WPNAV_SPEED 800`.
 - **3D görüntü**: sürükleyerek etrafında dön, sağ tıkla sürükleyerek kaydır, tekerlekle yakınlaş.
-  *Follow* kamerayı bir aracın üstünde tutar, *Fit* hepsini gösterir. Aracın etiketine tıklayınca
-  onu takip eder.
+  Bir araca (ya da etiketine, kartına) tıklayınca seçilir; üstteki panel irtifasını, hızını,
+  tırmanma hızını, yönünü ve bataryasını gösterir. Kamera modları: **Free** (serbest),
+  **Follow** (araç hareket ederken etrafında döner), **Chase** (arkasından) ve **Top** (yukarıdan,
+  kuzey yukarıda); `1`-`4` tuşları, serbest için `Esc`. Her aracın kendi rengi ve uçtuğu yerin
+  **izi** vardır (*Trails* kapatır, çöp kutusu temizler). *Fit* tüm araçları gösterir.
 - **Scenario (Senaryo)**: kayıtlı ya da örnek bir senaryo yükle, YAML'ını düzenle
   ([Hangar'ınkiyle](https://github.com/Enginar140/hangar/blob/main/README.tr.md#senaryo-dosyası) aynı
   biçim), uygula ve kaydet. Sorunlar başlatmadan önce gösterilir.

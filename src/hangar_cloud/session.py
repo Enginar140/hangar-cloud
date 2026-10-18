@@ -201,14 +201,17 @@ class Session:
         for v in self.sup.vehicles:
             tel = asdict(v.link.telemetry) if v.link else {}
             tel.pop("last_heartbeat", None)
+            modes = v.link.mode_names() if v.link and v.link.telemetry.mav_type is not None else []
             out.append({"name": v.name, "model": v.spec.model, "sysid": v.ports.sysid, "status": v.status,
+                        "kind": v.model.type, "modes": modes,
                         "gazebo": v.model.needs_gazebo, "pose": v.pose, "telemetry": tel,
                         "script_ports": [v.ports.serial1, v.ports.serial2]})
         return out
 
     def snapshot(self) -> dict:
         sup = self.sup
-        return {"state": self.state.value, "scenario": {"id": self.scenario_id, "yaml": self.scenario.dump()},
+        scenario = {"id": self.scenario_id, "name": self.scenario.name, "yaml": self.scenario.dump()}
+        return {"state": self.state.value, "scenario": scenario,
                 "vehicles": self.vehicles(), "sim_speed": sup.sim_speed() if sup else None,
                 "logs": [_log(x) for x in list(sup.logs)[-500:]] if sup else [],
                 "gazebo_view": bool(self.gz_python), "stats": self.stats,

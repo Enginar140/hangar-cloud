@@ -12,32 +12,77 @@
 </head>
 <body>
   <header class="bar">
-    <div class="brand"><img src="/favicon.svg" alt=""> Hangar <span>Cloud</span></div>
-    <div class="status">
-      <span id="state" class="pill">idle</span>
-      <span id="speed" class="metric" title="Simulated seconds per real second (×1 = real time)"></span>
-      <span id="scenario-name" class="muted"></span>
+    <div class="brand"><img src="/favicon.svg" alt=""><span>Hangar</span><em>Cloud</em></div>
+    <div class="sep"></div>
+    <div class="sim">
+      <span id="state" class="state"><i></i><span>idle</span></span>
+      <span id="scenario-name" class="scenario-name"></span>
+    </div>
+    <div class="stats">
+      <div class="stat" id="stat-speed" title="Simulated seconds per real second: ×1 is real time">
+        <small>Sim speed</small><strong>—</strong><span class="meter"><span></span></span>
+      </div>
+      <div class="stat" id="stat-vehicles"><small>Vehicles</small><strong>—</strong></div>
+      <div class="stat" id="stat-uptime"><small>Running for</small><strong>—</strong></div>
     </div>
     <div class="actions">
-      <button id="start" class="primary">Start</button>
-      <button id="stop" class="danger" hidden>Stop</button>
+      <button id="start" class="btn primary">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Start
+      </button>
+      <button id="stop" class="btn danger" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>Stop
+      </button>
     </div>
   </header>
 
   <main>
     <section id="view">
       <div id="viewport"></div>
+
       <div id="view-empty" class="overlay">
-        <h2>No simulation running</h2>
-        <p>Pick a scenario on the right and press <b>Start</b>. Gazebo vehicles appear here in 3D.</p>
+        <div class="empty-card">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 40 32 16l24 24h-8L32 24 16 40z"/><path d="M14 46h36v4H14z"/></svg>
+          <h2>No simulation running</h2>
+          <ol>
+            <li>Pick a scenario in the <b>Scenario</b> tab (or keep this one).</li>
+            <li>Press <b>Start</b>. Gazebo vehicles appear here in 3D.</li>
+            <li>Fly them from the <b>Vehicles</b> tab or QGroundControl.</li>
+          </ol>
+        </div>
       </div>
+
+      <div class="view-top-left">
+        <span id="loading" class="chip" hidden><span class="spinner"></span><span></span></span>
+      </div>
+      <div class="view-top-right">
+        <span id="rtf" class="chip" title="Gazebo's real-time factor"></span>
+        <div id="compass" title="North"><div class="rose"><span>N</span><i></i></div></div>
+      </div>
+
+      <div id="hud" hidden>
+        <div class="hud-head"><i></i><b></b><span class="hud-mode"></span><span class="hud-armed">ARMED</span></div>
+        <div class="hud-grid">
+          <div><small>ALT</small><strong data-k="alt">—</strong><em>m</em></div>
+          <div><small>SPEED</small><strong data-k="spd">—</strong><em>m/s</em></div>
+          <div><small>CLIMB</small><strong data-k="climb">—</strong><em>m/s</em></div>
+          <div><small>HEADING</small><strong data-k="hdg">—</strong><em>°</em></div>
+          <div><small>BATTERY</small><strong data-k="bat">—</strong><em>%</em></div>
+        </div>
+      </div>
+
       <div class="view-tools">
-        <label>Follow
-          <select id="follow"><option value="">free camera</option></select>
-        </label>
-        <button id="frame" title="Show all vehicles">Fit</button>
-        <span id="loading" class="muted"></span>
-        <span id="rtf" class="muted" title="Gazebo's real-time factor"></span>
+        <div class="segmented" id="cam-mode" role="group" aria-label="Camera">
+          <button data-mode="free" class="active" title="Drag to orbit, right-drag to pan, scroll to zoom">Free</button>
+          <button data-mode="follow" title="Orbit around the vehicle as it moves">Follow</button>
+          <button data-mode="chase" title="Behind the vehicle">Chase</button>
+          <button data-mode="top" title="From above, north up">Top</button>
+        </div>
+        <select id="follow" aria-label="Vehicle"><option value="">vehicle…</option></select>
+        <button id="frame" class="btn ghost" title="Show all vehicles">Fit</button>
+        <button id="trails" class="btn ghost active" title="Show the paths flown">Trails</button>
+        <button id="clear-trails" class="btn ghost icon" title="Clear the paths">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>
+        </button>
       </div>
     </section>
 
@@ -50,54 +95,67 @@
       </nav>
 
       <div id="tab-vehicles" class="tab active">
-        <div id="vehicles"><p class="muted">Vehicles show up here when the simulation starts.</p></div>
+        <div id="vehicles"></div>
       </div>
 
       <div id="tab-scenario" class="tab">
-        <div class="row">
-          <select id="scenarios"></select>
-          <button id="load">Load</button>
+        <div class="field">
+          <label for="scenarios">Scenario</label>
+          <div class="row">
+            <select id="scenarios"></select>
+            <button id="load" class="btn">Load</button>
+          </div>
         </div>
-        <textarea id="yaml" spellcheck="false" aria-label="Scenario YAML"></textarea>
+        <div class="field grow">
+          <label for="yaml">YAML</label>
+          <textarea id="yaml" spellcheck="false"></textarea>
+        </div>
         <div class="row">
-          <button id="apply" class="primary">Apply</button>
+          <button id="apply" class="btn primary">Apply</button>
           <input id="save-name" placeholder="name to save as">
-          <button id="save">Save</button>
+          <button id="save" class="btn">Save</button>
         </div>
         <div id="preflight"></div>
         <details class="help">
           <summary>Models and worlds on this server</summary>
-          <p><b>Models:</b> <span id="models" class="muted"></span></p>
-          <p><b>Worlds:</b> <span id="worlds" class="muted"></span></p>
+          <p><b>Models</b> <span id="models"></span></p>
+          <p><b>Worlds</b> <span id="worlds"></span></p>
         </details>
       </div>
 
       <div id="tab-logs" class="tab">
         <div class="row">
-          <select id="log-level">
-            <option value="info">everything</option>
-            <option value="event">events and problems</option>
-            <option value="warning">problems only</option>
+          <select id="log-level" aria-label="Level">
+            <option value="info">Everything</option>
+            <option value="event">Events and problems</option>
+            <option value="warning">Problems only</option>
           </select>
-          <input id="log-filter" placeholder="filter">
+          <input id="log-filter" placeholder="Filter" aria-label="Filter">
         </div>
         <div id="logs"></div>
       </div>
 
       <div id="tab-connect" class="tab">
-        <h3>Ground stations and scripts</h3>
-        <p class="muted">Hangar forwards every vehicle's MAVLink to these outputs. Add one that listens on
-          this server, then connect to it from your computer. Changes apply at once.</p>
-        <ul id="outputs"></ul>
-        <div class="row">
-          <input id="output-url" value="tcpin:0.0.0.0:5790" aria-label="output">
-          <select id="output-scope"><option value="*">all vehicles</option></select>
-          <button id="output-add">Add</button>
-        </div>
-        <p class="muted">QGroundControl / Mission Planner on Windows: <b>TCP</b>, host <b id="host-name"></b>,
-          the port above. Over the internet, use a VPN such as Tailscale or WireGuard instead of opening the port.</p>
-        <h3>Each vehicle's own ports</h3>
-        <div id="script-ports" class="muted">—</div>
+        <section class="card">
+          <h3>Ground stations and scripts</h3>
+          <p class="muted">Every vehicle's MAVLink goes to these outputs. Add one that listens on this
+            server, then connect to it from your computer. Changes apply at once.</p>
+          <ul id="outputs"></ul>
+          <div class="row">
+            <input id="output-url" value="tcpin:0.0.0.0:5790" aria-label="Output">
+            <select id="output-scope" aria-label="For"><option value="*">all vehicles</option></select>
+            <button id="output-add" class="btn primary">Add</button>
+          </div>
+        </section>
+        <section class="card">
+          <h3>QGroundControl / Mission Planner</h3>
+          <p class="muted">Comm link <b>TCP</b>, host <code id="host-name"></code>, port of a <code>tcpin</code>
+            output above. Over the internet, use a VPN such as Tailscale or WireGuard instead of opening the port.</p>
+        </section>
+        <section class="card">
+          <h3>Each vehicle's own ports</h3>
+          <div id="script-ports" class="muted">Shown while the simulation runs.</div>
+        </section>
       </div>
     </aside>
   </main>

@@ -7,7 +7,7 @@ Linux machine (a home server, a lab PC or a small VPS) and use them from a brows
 including Windows: a live **3D view**, vehicle telemetry and commands, scenarios, logs, and
 connection details for QGroundControl or Mission Planner.
 
-![A quadcopter in flight, seen in the browser](docs/images/quad.jpg)
+![A quadcopter in flight, seen from behind in the browser](docs/images/chase.jpg)
 
 > **Status: early (0.1).** One user at a time. The 3D view, commands, scenarios, logs and
 > MAVLink outputs work. Camera streams in the browser, a parameter editor and a map are next
@@ -36,7 +36,7 @@ QGroundControl / scripts ◄──── MAVLink TCP ───  outputs you add 
 
 | | |
 |---|---|
-| ![Fixed-wing on the ground](docs/images/plane.jpg) | ![Logs tab](docs/images/logs.jpg) |
+| ![A fixed-wing and a quadcopter on a runway, with the quadcopter's path](docs/images/overview.jpg) | ![The same page on a phone](docs/images/phone.jpg) |
 
 ## Requirements
 
@@ -114,11 +114,16 @@ loginctl enable-linger $USER   # keep running after you log out
 
 - **Start / Stop** at the top. The bar shows the simulation speed (×1 = real time); ArduPilot
   needs a while of *simulated* time before it can arm, so a slow simulation takes longer.
-- **Vehicles**: status, mode, armed, altitude, speed, battery, GPS and sim speed for each
-  vehicle. Buttons for arm, disarm, takeoff, RTL and land, and a command line for anything
-  else: `mode GUIDED`, `takeoff 50`, `param set WPNAV_SPEED 800`.
-- **3D view**: drag to orbit, right-drag to pan, scroll to zoom. *Follow* keeps the camera on a
-  vehicle; *Fit* shows them all. Click a vehicle's label to follow it.
+- **Vehicles**: a card per vehicle with altitude, speed, heading, battery, pre-arm state, GPS and
+  sim speed. Pick the flight mode from the vehicle's own list, arm or disarm, take off to the
+  altitude you type, RTL, land, and use the command line for anything else:
+  `param set WPNAV_SPEED 800`.
+- **3D view**: drag to orbit, right-drag to pan, scroll to zoom. Click a vehicle (or its label or
+  card) to select it; the panel at the top shows its altitude, speed, climb, heading and battery.
+  Camera modes: **Free**, **Follow** (orbit around the vehicle as it moves), **Chase** (behind it)
+  and **Top** (from above, north up); keys `1`-`4`, `Esc` for free. Each vehicle has its own
+  color and leaves a **trail** of where it flew (*Trails* switches them off, the bin clears them).
+  *Fit* shows all vehicles.
 - **Scenario**: load a saved or example scenario, edit its YAML (the same format as
   [Hangar's](https://github.com/Enginar140/hangar#scenario-files)), apply it and save it. Problems
   are shown before you start.
