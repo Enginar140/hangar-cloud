@@ -62,7 +62,7 @@ hangar-cloud serve
 Giriş anahtarı (token) içeren bir bağlantı yazar:
 
 ```
-hangar-cloud 0.2.0
+hangar-cloud 0.2.1
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (2026-10-18)
+
+- **Start says why it cannot start**: preflight errors (a busy port, an unknown model) come back
+  to the page at once instead of only in the log, and the 3D view is not cleared by a failed start.
+- Uses Hangar 0.3.4: a SITL already running on the machine no longer blocks the start; the
+  simulation moves to the first free instance.
+- Errors of background tasks go to the log instead of an unhandled traceback.
+
 ## 0.2.0 (2026-10-18)
 
 - **Map** (*Map* switch or `M`, Leaflet): vehicles with heading, altitude and path on

@@ -8,7 +8,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Enginar140" }]
 requires-python = ">=3.11"
 dependencies = [
-    "sitl-hangar @ https://github.com/Enginar140/hangar/releases/download/v0.3.3/sitl_hangar-0.3.3-py3-none-any.whl",
+    "sitl-hangar @ https://github.com/Enginar140/hangar/releases/download/v0.3.4/sitl_hangar-0.3.4-py3-none-any.whl",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
 ]

@@ -157,16 +157,28 @@ class Session:
     def _spawn(self, coro) -> asyncio.Task:
         task = asyncio.create_task(coro)
         self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._done)
         return task
+
+    def _done(self, task: asyncio.Task) -> None:
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        e = task.exception()
+        # a failed start is already in the simulation's log; anything else should be seen too
+        if e is not None and not isinstance(e, SupervisorError) and self.sup:
+            self.sup.log("cloud", f"{type(e).__name__}: {e}", "error")
 
     async def start(self) -> None:
         if self.busy:
             raise SupervisorError(f"simulation is {self.state.value}")
+        sup = Supervisor(self.scenario, self.settings, self.catalog, on_log=self._on_log, on_state=self._on_state)
+        pf = await asyncio.to_thread(sup.preflight)
+        if pf.errors:  # say why right away instead of only in the log
+            raise SupervisorError("; ".join(pf.errors))
         self.scene = self.stats = None
         self.hub.publish({"t": "scene_clear"})
-        self.sup = Supervisor(self.scenario, self.settings, self.catalog, on_log=self._on_log,
-                              on_state=self._on_state)
+        self.sup = sup
         if self._telemetry is None or self._telemetry.done():
             self._telemetry = self._spawn(self._send_telemetry())
         self._spawn(self.sup.start())

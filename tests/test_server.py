@@ -170,3 +170,10 @@ def test_parameters_api(client, session, monkeypatch):
     assert client.post("/api/vehicles/quad/params", json={"name": "wp_spd", "value": 8}, headers=ORIGIN).json() == \
         {"name": "WP_SPD", "value": 8.0}
     assert client.get("/api/vehicles/quad/params/meta").json() is None  # not downloaded yet
+
+
+def test_start_says_why_it_cannot(client, session):
+    session.set_scenario("vehicles: [{model: no_such_model}]")
+    r = client.post("/api/start", headers=ORIGIN)
+    assert r.status_code == 400 and "unknown model 'no_such_model'" in r.json()["detail"]
+    assert session.sup is None  # nothing was started
