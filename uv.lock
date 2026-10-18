@@ -239,7 +239,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "sitl-hangar", url = "https://github.com/Enginar140/hangar/releases/download/v0.3.2/sitl_hangar-0.3.2-py3-none-any.whl" },
+    { name = "sitl-hangar", git = "https://github.com/Enginar140/hangar?rev=645cdfea38d27fa6d7bb9100a097ae45a1b1ec6c" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 
@@ -959,23 +959,12 @@ wheels = [
 [[package]]
 name = "sitl-hangar"
 version = "0.3.2"
-source = { url = "https://github.com/Enginar140/hangar/releases/download/v0.3.2/sitl_hangar-0.3.2-py3-none-any.whl" }
+source = { git = "https://github.com/Enginar140/hangar?rev=645cdfea38d27fa6d7bb9100a097ae45a1b1ec6c#645cdfea38d27fa6d7bb9100a097ae45a1b1ec6c" }
 dependencies = [
     { name = "pydantic" },
     { name = "pymavlink" },
     { name = "pyyaml" },
     { name = "textual" },
-]
-wheels = [
-    { url = "https://github.com/Enginar140/hangar/releases/download/v0.3.2/sitl_hangar-0.3.2-py3-none-any.whl", hash = "sha256:00acda4052febcc985da48608c75890bf697765c7bcd97eaaad4d933e3f707d4" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "pymavlink", specifier = ">=2.4.40" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "textual", specifier = ">=8.0,<9" },
 ]
 
 [[package]]

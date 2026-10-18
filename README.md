@@ -5,13 +5,13 @@
 Run [Hangar](https://github.com/Enginar140/hangar)'s ArduPilot SITL + Gazebo simulations on a
 Linux machine (a home server, a lab PC or a small VPS) and use them from a browser on any computer,
 including Windows: a live **3D view**, vehicle telemetry and commands, scenarios, logs, and
-connection details for QGroundControl or Mission Planner.
+a map, a parameter editor, and connection details for QGroundControl or Mission Planner.
 
 ![A quadcopter in flight, seen from behind in the browser](docs/images/chase.jpg)
 
-> **Status: early (0.1).** One user at a time. The 3D view, commands, scenarios, logs and
-> MAVLink outputs work. Camera streams in the browser, a parameter editor and a map are next
-> (see [Roadmap](#roadmap)).
+> **Status: early.** One user at a time. The 3D view, browser-drawn cameras, the map, parameters,
+> commands, scenarios, logs and MAVLink outputs work. Missions and Gazebo's own camera streams are
+> next (see [Roadmap](#roadmap)).
 
 ## How it works
 
@@ -117,7 +117,7 @@ loginctl enable-linger $USER   # keep running after you log out
 - **Vehicles**: a card per vehicle with altitude, speed, heading, battery, pre-arm state, GPS and
   sim speed. Pick the flight mode from the vehicle's own list, arm or disarm, take off to the
   altitude you type, RTL, land, and use the command line for anything else:
-  `param set WPNAV_SPEED 800`.
+  `param set WP_SPD 8`, `goto -35.3620 149.1652 40`.
 - **3D view**: drag to orbit, right-drag to pan, scroll to zoom. Click a vehicle (or its label or
   card) to select it; the panel at the top shows its altitude, speed, climb, heading and battery.
   Camera modes: **Free**, **Follow** (orbit around the vehicle as it moves), **Chase** (behind it)
@@ -126,6 +126,17 @@ loginctl enable-linger $USER   # keep running after you log out
   *Fit* shows all vehicles.
 - **Camera**: the selected vehicle's camera in a window over the 3D view (`C`); it can fill the
   view (`F`) and save the picture as PNG. See [Vehicle cameras](#vehicle-cameras-drawn-by-your-browser).
+- **Map** (the *Map* switch at the top left, or `M`): every vehicle with its heading, altitude and
+  path, on OpenStreetMap or satellite imagery. **Click the map to fly a vehicle there**: pick the
+  vehicle and the altitude, *Fly here* (it switches to GUIDED; the same as `goto LAT LON ALT` on
+  the command line). *Follow* keeps the selected vehicle in the middle. Vehicles without Gazebo
+  show up here too.
+- **Parameters**: every parameter of the vehicle, read when you open the tab. Search by name, or
+  by description once you press *Get descriptions* (ArduPilot's list for the vehicle's firmware
+  version, downloaded from autotest.ardupilot.org once and kept). Edit a value and press Enter;
+  choices and bitmasks get a list and checkboxes, values outside the usual range ask first.
+  *changed* shows what changed since reading (also changes made by a ground station). *Save*
+  downloads a `.param` file; *Load* compares one with the vehicle and applies the differences.
 - **Scenario**: load a saved or example scenario, edit its YAML (the same format as
   [Hangar's](https://github.com/Enginar140/hangar#scenario-files)), apply it and save it. Problems
   are shown before you start.
@@ -134,6 +145,16 @@ loginctl enable-linger $USER   # keep running after you log out
 - **Connect**: MAVLink outputs, changed while running. To use QGroundControl or Mission Planner
   on Windows, add `tcpin:0.0.0.0:5790` and connect to TCP `server:5790`. Each vehicle also has two
   free SITL ports for your own scripts (listed there).
+
+| | |
+|---|---|
+| ![The map: a quadcopter's path and the fly-here box](docs/images/map.jpg) | ![The parameter editor with descriptions](docs/images/params.jpg) |
+
+### Next to another SITL
+
+A scenario starts its SITLs at instance 0 (MAVLink on `tcp:5760`). If another SITL already runs on
+the machine, the preflight check names the busy ports; add `first_instance: 3` (any free number)
+to the scenario and every port moves by 10 per instance.
 
 ## Vehicle cameras, drawn by your browser
 
@@ -177,7 +198,7 @@ open MAVLink ports to the internet; a VPN is the right tool for those.
 1. **Gazebo's own camera streams in the browser** with WebRTC (through
    [MediaMTX](https://github.com/bluenviron/mediamtx)), and RTSP for OpenCV on other computers.
    The browser-drawn camera is already there.
-2. **Parameter editor** and a **map** with vehicles and missions.
+2. **Missions** on the map: download, draw, upload; geofence and rally points.
 3. **Docker image** with Gazebo, ArduPilot and the models, one command to run on a VPS or on
    Windows (Docker Desktop with WSL2).
 4. More than one user, each with their own simulations.
@@ -185,7 +206,11 @@ open MAVLink ports to the internet; a VPN is the right tool for those.
 ## Licenses
 
 Hangar Cloud is [MIT](LICENSE). It bundles [three.js](https://threejs.org) (MIT,
-[license](src/hangar_cloud/web/vendor/three/LICENSE)). It installs nothing else by itself:
+[license](src/hangar_cloud/web/vendor/three/LICENSE)) and [Leaflet](https://leafletjs.com) (BSD-2-Clause,
+[license](src/hangar_cloud/web/vendor/leaflet/LICENSE)). Map tiles come from
+[OpenStreetMap](https://www.openstreetmap.org/copyright) and Esri World Imagery straight to your
+browser, with their attribution on the map; parameter descriptions come from ArduPilot's
+autotest server when you ask for them. It installs nothing else by itself:
 ArduPilot (GPL-3.0), Gazebo (Apache-2.0) and the vehicle models come through Hangar, which asks
 before downloading anything and shows each license. ArduPilot and Gazebo run as separate programs.
 If you offer a server like this to other people, check the licenses of the models and worlds you

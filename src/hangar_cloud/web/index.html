@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hangar Cloud</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css">
   <script type="importmap">
     {"imports": {"three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/"}}
@@ -38,6 +39,7 @@
   <main>
     <section id="view">
       <div id="viewport"></div>
+      <div id="map" hidden></div>
 
       <div id="view-empty" class="overlay">
         <div class="empty-card">
@@ -52,6 +54,10 @@
       </div>
 
       <div class="view-top-left">
+        <div class="segmented" id="view-kind" role="group" aria-label="View">
+          <button data-kind="3d" class="active" title="3D view (M switches)">3D</button>
+          <button data-kind="map" title="Map: click to fly a vehicle there (M switches)">Map</button>
+        </div>
         <span id="loading" class="chip" hidden><span class="spinner"></span><span></span></span>
       </div>
       <div class="view-top-right">
@@ -88,7 +94,12 @@
       </div>
 
       <div class="view-tools">
-        <div class="segmented" id="cam-mode" role="group" aria-label="Camera">
+        <div class="segmented only-map" id="map-tiles" role="group" aria-label="Map tiles">
+          <button data-tiles="map" class="active">Streets</button>
+          <button data-tiles="satellite">Satellite</button>
+        </div>
+        <button id="map-follow" class="btn ghost only-map" title="Keep the selected vehicle in the middle">Follow</button>
+        <div class="segmented only-3d" id="cam-mode" role="group" aria-label="Camera">
           <button data-mode="free" class="active" title="Drag to orbit, right-drag to pan, scroll to zoom">Free</button>
           <button data-mode="follow" title="Orbit around the vehicle as it moves">Follow</button>
           <button data-mode="chase" title="Behind the vehicle">Chase</button>
@@ -96,7 +107,7 @@
         </div>
         <select id="follow" aria-label="Vehicle"><option value="">vehicle…</option></select>
         <button id="frame" class="btn ghost" title="Show all vehicles">Fit</button>
-        <button id="camera" class="btn ghost" title="The selected vehicle's camera, drawn by your browser (C)">Camera</button>
+        <button id="camera" class="btn ghost only-3d" title="The selected vehicle's camera, drawn by your browser (C)">Camera</button>
         <button id="trails" class="btn ghost active" title="Show the paths flown">Trails</button>
         <button id="clear-trails" class="btn ghost icon" title="Clear the paths">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>
@@ -108,6 +119,7 @@
       <nav class="tabs">
         <button data-tab="vehicles" class="active">Vehicles</button>
         <button data-tab="scenario">Scenario</button>
+        <button data-tab="params">Parameters</button>
         <button data-tab="logs">Logs <span id="log-badge" class="badge" hidden></span></button>
         <button data-tab="connect">Connect</button>
       </nav>
@@ -139,6 +151,23 @@
           <p><b>Models</b> <span id="models"></span></p>
           <p><b>Worlds</b> <span id="worlds"></span></p>
         </details>
+      </div>
+
+      <div id="tab-params" class="tab">
+        <div class="row">
+          <select id="param-vehicle" aria-label="Vehicle"></select>
+          <button id="param-fetch" class="btn" title="Read every parameter from the vehicle again">Refresh</button>
+          <button id="param-save" class="btn" title="Download every value as a .param file">Save</button>
+          <label id="param-load" class="btn" title="Compare a .param file with the vehicle and apply the differences">Load
+            <input id="param-file" type="file" accept=".param,.parm,.params,.txt" hidden></label>
+        </div>
+        <div class="row">
+          <input id="param-search" type="search" placeholder="Search names and descriptions" aria-label="Search">
+          <label class="check" title="Only the ones changed since they were read"><input type="checkbox" id="param-changed"> changed</label>
+        </div>
+        <div id="param-status" class="muted small"></div>
+        <div id="param-import"></div>
+        <div id="param-list"></div>
       </div>
 
       <div id="tab-logs" class="tab">

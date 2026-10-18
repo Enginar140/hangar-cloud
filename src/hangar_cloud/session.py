@@ -20,6 +20,8 @@ from hangar.scenario import Scenario
 from hangar.settings import Settings
 from hangar.supervisor import LogLine, SimState, Supervisor, SupervisorError
 
+from . import params as param_meta
+
 BRIDGE = Path(__file__).with_name("gzbridge.py")
 TELEMETRY_EVERY = 0.5  # seconds
 KIND = re.compile(r'^\{"t":"(\w+)"')
@@ -174,13 +176,41 @@ class Session:
         if self.sup and self.state != SimState.IDLE:
             await self.sup.stop()
 
-    async def command(self, vehicle: str, line: str) -> str:
+    def _vehicle(self, vehicle: str):
         if not self.sup:
             raise SupervisorError("nothing is running")
         v = self.sup.vehicle(vehicle)
         if not v.link:
             raise SupervisorError(f"{vehicle} has no MAVLink connection yet")
-        return await v.link.run(line)
+        return v
+
+    async def command(self, vehicle: str, line: str) -> str:
+        return await self._vehicle(vehicle).link.run(line)
+
+    # --- parameters ----------------------------------------------------------
+
+    def params(self, vehicle: str) -> dict:
+        v = self._vehicle(vehicle)
+        link = v.link
+        return {"vehicle": v.name, "type": v.model.type, "version": link.telemetry.version,
+                "count": link.param_count, "complete": link.params_complete, "changed": link.params_changed,
+                "params": {n: [x, link.param_is_int(n)] for n, x in sorted(link.params.items())}}
+
+    async def fetch_params(self, vehicle: str) -> dict:
+        await self._vehicle(vehicle).link.fetch_params()
+        return self.params(vehicle)
+
+    async def set_param(self, vehicle: str, name: str, value: float) -> float:
+        return await self._vehicle(vehicle).link.set_param(name, value)
+
+    async def param_meta(self, vehicle: str, download: bool = False) -> dict | None:
+        """Descriptions for the vehicle's firmware: from the cache, or downloaded when asked."""
+        v = self._vehicle(vehicle)
+        version = v.link.telemetry.version
+        data = param_meta.cached(v.model.type, version)
+        if data is None and download:
+            data = await asyncio.to_thread(param_meta.download, v.model.type, version)
+        return data
 
     async def add_output(self, url: str, scope: str) -> None:
         if not self.sup:
@@ -202,8 +232,11 @@ class Session:
             tel = asdict(v.link.telemetry) if v.link else {}
             tel.pop("last_heartbeat", None)
             modes = v.link.mode_names() if v.link and v.link.telemetry.mav_type is not None else []
+            link = v.link
+            params = {"have": len(link.params), "count": link.param_count, "changed": link.params_changed} \
+                if link else None
             out.append({"name": v.name, "model": v.spec.model, "sysid": v.ports.sysid, "status": v.status,
-                        "kind": v.model.type, "modes": modes, "view": view_camera(v),
+                        "kind": v.model.type, "modes": modes, "view": view_camera(v), "params": params,
                         "gazebo": v.model.needs_gazebo, "pose": v.pose, "telemetry": tel,
                         "script_ports": [v.ports.serial1, v.ports.serial2]})
         return out
@@ -217,7 +250,8 @@ class Session:
                 "gazebo_view": bool(self.gz_python), "stats": self.stats,
                 "outputs": {"*": list(self.scenario.outputs),
                             **{v.name: list(v.outputs) for v in self.scenario.vehicles if v.name and v.outputs}},
-                "started_at": sup.started_at if sup else None}
+                "started_at": sup.started_at if sup else None,
+                "home": _home(sup or Supervisor(self.scenario, self.settings, self.catalog))}
 
     async def _send_telemetry(self) -> None:
         while True:
@@ -289,6 +323,14 @@ class Session:
         await self.stop()
         for t in list(self._tasks):
             t.cancel()
+
+
+def _home(sup: Supervisor) -> dict | None:
+    try:
+        h = sup.home()
+    except Exception:  # an unfinished scenario
+        return None
+    return {"lat": h.lat, "lon": h.lon, "alt": h.alt, "heading": h.heading}
 
 
 def view_camera(v) -> dict:

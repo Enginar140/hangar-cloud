@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import gzip
 import hmac
 import json
 import secrets
@@ -39,6 +40,11 @@ class SaveAs(BaseModel):
 
 class Command(BaseModel):
     line: str
+
+
+class ParamSet(BaseModel):
+    name: str
+    value: float
 
 
 class Output(BaseModel):
@@ -134,6 +140,42 @@ def create_app(session: Session, token: str) -> FastAPI:
         except (SupervisorError, CommandError) as e:
             raise fail(e) from e
 
+    @app.get("/api/vehicles/{name}/params")
+    async def params(name: str):
+        try:
+            return session.params(name)
+        except SupervisorError as e:
+            raise fail(e) from e
+
+    @app.post("/api/vehicles/{name}/params/fetch")
+    async def fetch_params(name: str):
+        try:
+            return await session.fetch_params(name)
+        except (SupervisorError, CommandError) as e:
+            raise fail(e) from e
+
+    @app.post("/api/vehicles/{name}/params")
+    async def set_param(name: str, body: ParamSet):
+        try:
+            return {"name": body.name.upper(), "value": await session.set_param(name, body.name, body.value)}
+        except (SupervisorError, CommandError) as e:
+            raise fail(e) from e
+
+    @app.get("/api/vehicles/{name}/params/meta")
+    async def param_meta(name: str, request: Request):
+        try:
+            data = await session.param_meta(name)
+        except (SupervisorError, ValueError) as e:
+            raise fail(e) from e
+        return _json(data, request)  # null: not downloaded yet
+
+    @app.post("/api/vehicles/{name}/params/meta")
+    async def download_param_meta(name: str, request: Request):
+        try:
+            return _json(await session.param_meta(name, download=True), request)
+        except (SupervisorError, ValueError, OSError) as e:
+            raise HTTPException(502 if isinstance(e, OSError) else 400, f"download failed: {e}") from e
+
     @app.post("/api/outputs")
     async def add_output(body: Output):
         try:
@@ -178,6 +220,15 @@ def create_app(session: Session, token: str) -> FastAPI:
 
     app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
     return app
+
+
+def _json(data: dict | None, request: Request) -> Response:
+    """Big JSON (parameter descriptions are over a megabyte) compressed when the browser accepts it."""
+    body = json.dumps(data, separators=(",", ":")).encode()
+    if "gzip" in request.headers.get("accept-encoding", ""):
+        return Response(gzip.compress(body, 6), media_type="application/json",
+                        headers={"Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
+    return Response(body, media_type="application/json")
 
 
 async def _pump(socket: WebSocket, q: asyncio.Queue[str]) -> None:

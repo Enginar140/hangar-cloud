@@ -144,3 +144,29 @@ def test_browser_camera_mount():
     assert view_camera(v)["pose"] == [0, 0, -0.1, 0, 90, 0] and view_camera(v)["hfov_deg"] == 80  # looks down
     v = SimpleNamespace(spec=VehicleSpec(model="boat"), model=SimpleNamespace(camera_pose=None))
     assert view_camera(v)["pose"][:3] == [0.3, 0.0, 0.05]  # the nose, by default
+
+
+def test_parameters_api(client, session, monkeypatch):
+    from types import SimpleNamespace
+
+    assert client.get("/api/vehicles/quad/params").status_code == 400  # nothing running
+
+    class Link:
+        params = {"WP_SPD": 5.0, "ARMING_CHECK": 1.0}
+        param_count, params_complete, params_changed = 2, True, 3
+        telemetry = SimpleNamespace(version="4.7.2")
+
+        def param_is_int(self, name):
+            return name == "ARMING_CHECK"
+
+        async def set_param(self, name, value):
+            self.params[name.upper()] = value
+            return value
+
+    v = SimpleNamespace(name="quad", link=Link(), model=SimpleNamespace(type="copter"))
+    monkeypatch.setattr(session, "sup", SimpleNamespace(vehicle=lambda n: v))
+    r = client.get("/api/vehicles/quad/params").json()
+    assert r["params"] == {"ARMING_CHECK": [1.0, True], "WP_SPD": [5.0, False]} and r["version"] == "4.7.2"
+    assert client.post("/api/vehicles/quad/params", json={"name": "wp_spd", "value": 8}, headers=ORIGIN).json() == \
+        {"name": "WP_SPD", "value": 8.0}
+    assert client.get("/api/vehicles/quad/params/meta").json() is None  # not downloaded yet

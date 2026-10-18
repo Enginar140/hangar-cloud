@@ -5,14 +5,14 @@
 [Hangar](https://github.com/Enginar140/hangar)'ın ArduPilot SITL + Gazebo simülasyonlarını bir
 Linux makinede (evdeki sunucu, laboratuvar bilgisayarı ya da küçük bir VPS) çalıştırır ve
 Windows dahil her bilgisayardan tarayıcıyla kullanmanı sağlar. Canlı **3D görüntü**, araç
-telemetrisi ve komutları, senaryolar, loglar ve QGroundControl / Mission Planner bağlantı
-bilgileri tek sayfada.
+telemetrisi ve komutları, senaryolar, loglar, harita, parametre düzenleyici ve
+QGroundControl / Mission Planner bağlantı bilgileri tek sayfada.
 
 ![Tarayıcıda arkasından görülen, uçan bir quadcopter](docs/images/chase.jpg)
 
-> **Durum: erken sürüm (0.1).** Aynı anda tek kullanıcı. 3D görüntü, komutlar, senaryolar,
-> loglar ve MAVLink çıkışları çalışıyor. Tarayıcıda kamera görüntüsü, parametre düzenleyici ve
-> harita sırada ([Yol haritası](#yol-haritası)).
+> **Durum: erken sürüm.** Aynı anda tek kullanıcı. 3D görüntü, tarayıcının çizdiği kameralar,
+> harita, parametreler, komutlar, senaryolar, loglar ve MAVLink çıkışları çalışıyor. Görevler
+> (mission) ve Gazebo'nun kendi kamera yayınları sırada ([Yol haritası](#yol-haritası)).
 
 ## Nasıl çalışır
 
@@ -121,7 +121,7 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 - **Vehicles (Araçlar)**: her araç için bir kart: irtifa, hız, yön, batarya, arm'a hazır olma,
   GPS ve simülasyon hızı. Uçuş modunu aracın kendi listesinden seç, arm/disarm et, yazdığın
   irtifaya kalkış yap, RTL, iniş; geri kalan her şey için komut satırı:
-  `param set WPNAV_SPEED 800`.
+  `param set WP_SPD 8`, `goto -35.3620 149.1652 40`.
 - **3D görüntü**: sürükleyerek etrafında dön, sağ tıkla sürükleyerek kaydır, tekerlekle yakınlaş.
   Bir araca (ya da etiketine, kartına) tıklayınca seçilir; üstteki panel irtifasını, hızını,
   tırmanma hızını, yönünü ve bataryasını gösterir. Kamera modları: **Free** (serbest),
@@ -131,6 +131,16 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 - **Camera (Kamera)**: seçili aracın kamerası 3D görüntünün üstünde bir pencerede (`C`); tüm
   görüntüyü kaplayabilir (`F`), resmi PNG olarak kaydedebilir. Bkz.
   [Araç kameraları](#araç-kameraları-tarayıcının-çizdiği).
+- **Harita** (sol üstteki *Map* düğmesi ya da `M`): her araç yönü, irtifası ve izlediği yolla,
+  OpenStreetMap ya da uydu görüntüsü üzerinde. **Haritaya tıklayıp aracı oraya uçur**: aracı ve
+  irtifayı seç, *Fly here* (araç GUIDED moda geçer; komut satırındaki `goto ENLEM BOYLAM İRTİFA`
+  ile aynı). *Follow* seçili aracı ortada tutar. Gazebo'suz araçlar da burada görünür.
+- **Parameters (Parametreler)**: aracın tüm parametreleri, sekme açılınca okunur. Ada göre ara;
+  *Get descriptions*'a basınca açıklamalara göre de (aracın firmware sürümü için ArduPilot'un
+  listesi, autotest.ardupilot.org'dan bir kez indirilip saklanır). Değeri değiştirip Enter'a bas;
+  seçenekli ve bitmask parametreler liste ve kutucuklarla gelir, olağan aralığın dışındaki değerler
+  önce sorulur. *changed* okumadan beri değişenleri gösterir (yer istasyonunun yaptıkları dahil).
+  *Save* `.param` dosyası indirir; *Load* bir dosyayı araçla karşılaştırıp farkları uygular.
 - **Scenario (Senaryo)**: kayıtlı ya da örnek bir senaryo yükle, YAML'ını düzenle
   ([Hangar'ınkiyle](https://github.com/Enginar140/hangar/blob/main/README.tr.md#senaryo-dosyası) aynı
   biçim), uygula ve kaydet. Sorunlar başlatmadan önce gösterilir.
@@ -139,6 +149,16 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 - **Connect (Bağlan)**: MAVLink çıkışları, simülasyon çalışırken değiştirilebilir. Windows'ta
   QGroundControl ya da Mission Planner için `tcpin:0.0.0.0:5790` ekle ve TCP `sunucu:5790`'a
   bağlan. Her aracın kendi script'lerin için iki boş SITL portu da vardır (orada listelenir).
+
+| | |
+|---|---|
+| ![Harita: quadcopter'ın yolu ve "buraya uç" kutusu](docs/images/map.jpg) | ![Açıklamalarıyla parametre düzenleyici](docs/images/params.jpg) |
+
+### Başka bir SITL'in yanında
+
+Bir senaryo SITL'lerini 0. instance'tan başlatır (MAVLink `tcp:5760`'ta). Makinede zaten başka bir
+SITL çalışıyorsa başlatma öncesi kontrol dolu portları söyler; senaryoya `first_instance: 3` (boş
+herhangi bir sayı) ekle, her instance portları 10 kaydırır.
 
 ## Araç kameraları, tarayıcının çizdiği
 
@@ -184,15 +204,19 @@ açma; onlar için doğru araç VPN'dir.
 1. **Gazebo'nun kendi kamera yayınları tarayıcıda**: WebRTC ile
    ([MediaMTX](https://github.com/bluenviron/mediamtx) üzerinden), başka bilgisayarlardaki OpenCV
    için de RTSP. Tarayıcının çizdiği kamera zaten var.
-2. **Parametre düzenleyici** ve araçları, görevleri gösteren bir **harita**.
+2. Haritada **görevler**: indirme, çizme, yükleme; geofence ve rally noktaları.
 3. Gazebo, ArduPilot ve modellerle **Docker imajı**: VPS'te ya da Windows'ta (WSL2'li Docker
    Desktop) tek komutla çalıştırmak için.
 4. Birden çok kullanıcı, her birinin kendi simülasyonları.
 
 ## Lisanslar
 
-Hangar Cloud [MIT](LICENSE) lisanslıdır. İçinde [three.js](https://threejs.org) bulunur (MIT,
-[lisans](src/hangar_cloud/web/vendor/three/LICENSE)). Kendisi başka hiçbir şey kurmaz: ArduPilot
+Hangar Cloud [MIT](LICENSE) lisanslıdır. İçinde [three.js](https://threejs.org) (MIT,
+[lisans](src/hangar_cloud/web/vendor/three/LICENSE)) ve [Leaflet](https://leafletjs.com) (BSD-2-Clause,
+[lisans](src/hangar_cloud/web/vendor/leaflet/LICENSE)) bulunur. Harita karoları
+[OpenStreetMap](https://www.openstreetmap.org/copyright) ve Esri World Imagery'den doğrudan
+tarayıcına gelir, kaynakları haritada yazar; parametre açıklamaları istediğinde ArduPilot'un
+autotest sunucusundan gelir. Kendisi başka hiçbir şey kurmaz: ArduPilot
 (GPL-3.0), Gazebo (Apache-2.0) ve araç modelleri Hangar üzerinden gelir; Hangar bir şey indirmeden
 önce sorar ve lisansını gösterir. ArduPilot ve Gazebo ayrı programlar olarak çalışır. Böyle bir
 sunucuyu başkalarına açarsan, gösterdiğin modellerin ve dünyaların lisanslarına bak; bazı örnek

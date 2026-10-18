@@ -118,6 +118,12 @@ export class Viewer {
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
+  // nothing to draw while the map is shown
+  setPaused(paused) {
+    this.renderer.setAnimationLoop(paused ? null : () => this.frame());
+    if (!paused) this.resize();
+  }
+
   resize() {
     const w = this.container.clientWidth || 1, h = this.container.clientHeight || 1;
     this.renderer.setSize(w, h);

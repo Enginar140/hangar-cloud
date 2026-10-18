@@ -1,4 +1,6 @@
 import { Viewer } from './viewer.js';
+import { VehicleMap } from './map.js';
+import { ParamEditor } from './params.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LEVELS = { info: 0, event: 1, warning: 2, error: 3 };
@@ -7,8 +9,9 @@ const COLORS = ['#4da3ff', '#ffa94d', '#5fd68a', '#ff6b8b', '#b98cff', '#f5d04a'
 
 const state = {
   sim: 'idle', vehicles: [], logs: [], unseen: 0, selected: null, camera: 'free',
-  hasScene: false, startedAt: null, info: null, pip: null,
+  hasScene: false, startedAt: null, info: null, pip: null, view: '3d', home: null,
 };
+let map = null;  // made the first time it is shown
 
 const viewer = new Viewer($('#viewport'), {
   onSelect: (name) => selectVehicle(name, true),
@@ -74,7 +77,7 @@ function setSimState(s) {
   $('#stop').disabled = s === 'stopping';
   for (const id of ['#apply', '#load']) $(id).disabled = busy;
   if (!busy) { setSpeed(null); state.startedAt = null; }
-  $('#view-empty').hidden = busy || state.hasScene;
+  $('#view-empty').hidden = busy || state.hasScene || (state.view === 'map' && state.vehicles.length > 0);
 }
 
 function setSpeed(speed) {
@@ -108,6 +111,7 @@ for (const b of document.querySelectorAll('.tabs button')) {
     for (const x of document.querySelectorAll('.tabs button')) x.classList.toggle('active', x === b);
     for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab);
     if (b.dataset.tab === 'logs') { state.unseen = 0; updateBadge(); scrollLogs(true); }
+    if (b.dataset.tab === 'params') params.shown();
   };
 }
 
@@ -119,7 +123,7 @@ function renderVehicles() {
   $('#stat-vehicles strong').textContent = state.vehicles.length ? `${online}/${state.vehicles.length} online` : '—';
 
   const follow = $('#follow');
-  const gz = state.vehicles.filter((v) => v.gazebo);
+  const gz = state.vehicles.filter((v) => v.gazebo || state.view === 'map');
   if (follow.options.length - 1 !== gz.length || gz.some((v, i) => follow.options[i + 1].value !== v.name)) {
     follow.replaceChildren(el('option', { value: '' }, 'vehicle…'), ...gz.map((v) => el('option', { value: v.name }, v.name)));
   }
@@ -164,7 +168,7 @@ function vehicleCard(v) {
   line.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
   const tile = (k, label, unit, extra) => el('div', { class: 'tile' }, el('small', {}, label), el('strong', { 'data-k': k }, '—'), el('em', {}, unit), extra);
   return el('div', { class: 'vehicle', 'data-name': v.name },
-    el('header', { onclick: () => selectVehicle(v.name, true), title: 'Show in 3D' },
+    el('header', { onclick: () => selectVehicle(v.name, true), title: 'Show it in the view' },
       el('i'), el('b', {}, v.name), el('span', { class: 'model' }, `${v.model} · ${v.kind}`), el('span', { class: 'status' })),
     el('div', { class: 'tiles' },
       tile('alt', 'ALTITUDE', 'm'), tile('spd', 'SPEED', 'm/s'), tile('hdg', 'HEADING', '°'),
@@ -223,7 +227,7 @@ function updateCard(card, v) {
 function renderHud() {
   const hud = $('#hud');
   const v = state.vehicles.find((x) => x.name === state.selected);
-  if (!v || !state.hasScene) { hud.hidden = true; return; }
+  if (!v || !(state.hasScene || state.view === 'map')) { hud.hidden = true; return; }
   const t = v.telemetry || {};
   hud.hidden = false;
   hud.style.setProperty('--c', colorOf(v.name));
@@ -240,6 +244,13 @@ function renderHud() {
 
 function selectVehicle(name, toggle = false) {
   state.selected = toggle && state.selected === name ? null : name;
+  map?.select(state.selected);
+  if (state.view === 'map') {
+    if (state.selected) map.setFollow(true);
+    setMapFollow(!!state.selected);
+    renderVehicles();
+    return;
+  }
   if (state.pip && state.selected && state.pip.vehicle !== state.selected) {
     state.pip = { vehicle: state.selected, index: 0, full: state.pip.full };
     updatePip();
@@ -271,15 +282,25 @@ $('#follow').onchange = (e) => {
   if (e.target.value) selectVehicle(e.target.value);
   else { state.selected = null; setCameraMode('free'); }
 };
-$('#frame').onclick = () => { setCameraMode('free'); viewer.frameVehicles(); };
+$('#frame').onclick = () => {
+  if (state.view === 'map') { setMapFollow(false); map.fit(); return; }
+  setCameraMode('free');
+  viewer.frameVehicles();
+};
 $('#trails').onclick = (e) => {
   const on = !e.currentTarget.classList.contains('active');
   e.currentTarget.classList.toggle('active', on);
   viewer.setTrails(on);
+  map?.setTrails(on);
 };
-$('#clear-trails').onclick = () => viewer.clearTrails();
+$('#clear-trails').onclick = () => { viewer.clearTrails(); map?.clearTrails(); };
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, textarea, select')) return;
+  if (e.key === 'm' || e.key === 'M') { setView(state.view === 'map' ? '3d' : 'map'); return; }
+  if (state.view === 'map') {
+    if (e.key === 'Escape') { state.selected = null; map.select(null); setMapFollow(false); renderVehicles(); }
+    return;
+  }
   const keys = { 1: 'free', 2: 'follow', 3: 'chase', 4: 'top' };
   if (keys[e.key]) setCameraMode(keys[e.key]);
   if (e.key === 'Escape') {
@@ -290,6 +311,62 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'c' || e.key === 'C') { if (state.pip) closePip(); else openPip(state.selected); }
   if ((e.key === 'f' || e.key === 'F') && state.pip) { state.pip.full = !state.pip.full; updatePip(); }
 });
+
+// --- map -------------------------------------------------------------------
+
+function setView(kind) {
+  state.view = kind;
+  for (const b of document.querySelectorAll('#view-kind button')) b.classList.toggle('active', b.dataset.kind === kind);
+  document.body.classList.toggle('view-map', kind === 'map');
+  $('#viewport').hidden = kind === 'map';
+  $('#map').hidden = kind !== 'map';
+  viewer.setPaused(kind === 'map');
+  if (kind === 'map') {
+    if (!map) {
+      map = new VehicleMap($('#map'), {
+        onSelect: (name) => selectVehicle(name, true),
+        onGoto: (name, lat, lon, alt) => command(name, `goto ${lat.toFixed(7)} ${lon.toFixed(7)} ${alt}`),
+      });
+      $('#map').addEventListener('unfollow', () => setMapFollow(false));
+      map.setTrails($('#trails').classList.contains('active'));
+      map.setHome(state.home);
+    }
+    map.resize();
+    map.select(state.selected);
+    map.setVehicles(withColors(state.vehicles));
+  }
+  $('#pip').hidden = kind === 'map' || !state.pip;
+  if (kind === '3d' && state.pip) updatePip();
+  setSimState(state.sim);
+  renderVehicles();
+}
+
+function setMapFollow(on) {
+  map?.setFollow(on);
+  $('#map-follow').classList.toggle('active', on);
+}
+
+for (const b of document.querySelectorAll('#view-kind button')) b.onclick = () => setView(b.dataset.kind);
+for (const b of document.querySelectorAll('#map-tiles button')) {
+  b.onclick = () => {
+    for (const x of document.querySelectorAll('#map-tiles button')) x.classList.toggle('active', x === b);
+    map.setTiles(b.dataset.tiles);
+  };
+}
+$('#map-follow').onclick = () => {
+  const on = !$('#map-follow').classList.contains('active');
+  if (on && !state.selected) {
+    const first = state.vehicles[0];
+    if (!first) return;
+    state.selected = first.name;
+    map.select(first.name);
+  }
+  setMapFollow(on);
+};
+
+// --- parameters --------------------------------------------------------------
+
+const params = new ParamEditor({ api, toast, el, root: $('#tab-params') });
 
 // --- vehicle camera (drawn by the browser) ---------------------------------
 
@@ -314,10 +391,10 @@ function updatePip() {
   const p = state.pip;
   const cams = p ? viewer.viewCameras(p.vehicle) : [];
   $('#camera').classList.toggle('active', !!p);
-  if (!p || !cams.length) {
+  if (!p || !cams.length || state.view === 'map') {
     box.hidden = true;
     viewer.setPip(null);
-    if (p && state.hasScene) toast(`${p.vehicle} is not in the 3D view`, 'bad');
+    if (p && state.hasScene && state.view !== 'map') toast(`${p.vehicle} is not in the 3D view`, 'bad');
     return;
   }
   p.index = Math.min(p.index, cams.length - 1);
@@ -364,6 +441,8 @@ function renderInfo(info) {
   $('#models').textContent = info.models.join(', ');
   $('#worlds').textContent = info.worlds.join(', ');
   renderOutputs(info.outputs || {});
+  state.home = info.home;
+  map?.setHome(info.home);
   state.startedAt = info.started_at;
 }
 
@@ -488,6 +567,9 @@ function handle(msg) {
       state.startedAt = msg.started_at;
       state.vehicles = msg.vehicles;
       state.logs = msg.logs;
+      state.home = msg.home;
+      map?.setHome(msg.home);
+      params.setVehicles(state.vehicles);
       renderVehicles();
       renderLogs();
       if (!msg.gazebo_view) $('#rtf').textContent = '3D view off on this server';
@@ -502,6 +584,8 @@ function handle(msg) {
       setSpeed(msg.sim_speed);
       renderVehicles();
       viewer.setVehicles(withColors(state.vehicles));
+      map?.setVehicles(withColors(state.vehicles));
+      params.setVehicles(state.vehicles);
       break;
     case 'scene':
       state.hasScene = true;
@@ -516,6 +600,7 @@ function handle(msg) {
       state.hasScene = false;
       closePip();
       viewer.clear();
+      map?.clear();
       state.logs = [];
       renderLogs();
       renderHud();
