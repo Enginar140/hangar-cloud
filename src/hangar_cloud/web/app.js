@@ -77,8 +77,27 @@ function setSimState(s) {
   $('#stop').disabled = s === 'stopping';
   for (const id of ['#apply', '#load']) $(id).disabled = busy;
   if (!busy) { setSpeed(null); state.startedAt = null; }
-  $('#view-empty').hidden = busy || state.hasScene || (state.view === 'map' && state.vehicles.length > 0);
+  renderEmpty();
 }
+
+// the message over the view: nothing running, or vehicles that Gazebo does not draw
+function renderEmpty() {
+  const busy = state.sim === 'starting' || state.sim === 'running' || state.sim === 'stopping';
+  const no3d = state.sim === 'running' && state.vehicles.length > 0 && !state.vehicles.some((v) => v.gazebo);
+  $('#empty-idle').hidden = busy;
+  $('#empty-no3d').hidden = !no3d;
+  $('#view-empty').hidden = state.view === 'map' || state.hasScene || (busy && !no3d);
+}
+
+$('#empty-map').onclick = () => setView('map');
+$('#empty-gazebo').onclick = async () => {
+  try {
+    if (state.sim !== 'idle' && state.sim !== 'error') await api('/api/stop', {});
+    renderPreflight(await api('/api/scenario/load', { id: 'example:runway-3d' }));
+    refresh();
+    toast('Gazebo example loaded: press Start');
+  } catch (e) { toast(e.message, 'bad'); }
+};
 
 function setSpeed(speed) {
   const box = $('#stat-speed');
@@ -136,6 +155,7 @@ function renderVehicles() {
     scope.value = sv;
   }
 
+  renderEmpty();
   if (!state.vehicles.length) {
     if (!box.querySelector('.empty')) box.replaceChildren(el('div', { class: 'empty' }, 'Vehicles show up here when the simulation starts.'));
     renderHud();
@@ -263,7 +283,7 @@ function selectVehicle(name, toggle = false) {
 function setCameraMode(mode) {
   if (mode !== 'free' && !state.selected) {
     const first = state.vehicles.find((v) => v.gazebo);
-    if (!first) { toast('No vehicle in 3D yet', 'bad'); return; }
+    if (!first) { toast(state.vehicles.length ? 'These vehicles are not in Gazebo: see the Map' : 'No vehicle in 3D yet', 'bad'); return; }
     state.selected = first.name;
   }
   state.camera = mode;
@@ -373,7 +393,7 @@ const params = new ParamEditor({ api, toast, el, root: $('#tab-params') });
 function openPip(name) {
   if (!name) {
     const first = state.vehicles.find((v) => v.gazebo);
-    if (!first) { toast('No vehicle in 3D yet', 'bad'); return; }
+    if (!first) { toast(state.vehicles.length ? 'These vehicles are not in Gazebo: see the Map' : 'No vehicle in 3D yet', 'bad'); return; }
     name = first.name;
   }
   state.pip = { vehicle: name, index: 0, full: false };
@@ -589,7 +609,7 @@ function handle(msg) {
       break;
     case 'scene':
       state.hasScene = true;
-      $('#view-empty').hidden = true;
+      renderEmpty();
       viewer.setScene(msg);
       viewer.setVehicles(withColors(state.vehicles));
       if (state.camera !== 'free') applyCamera();

@@ -42,7 +42,7 @@
       <div id="map" hidden></div>
 
       <div id="view-empty" class="overlay">
-        <div class="empty-card">
+        <div class="empty-card" id="empty-idle">
           <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 40 32 16l24 24h-8L32 24 16 40z"/><path d="M14 46h36v4H14z"/></svg>
           <h2>No simulation running</h2>
           <ol>
@@ -50,6 +50,16 @@
             <li>Press <b>Start</b>. Gazebo vehicles appear here in 3D.</li>
             <li>Fly them from the <b>Vehicles</b> tab or QGroundControl.</li>
           </ol>
+        </div>
+        <div class="empty-card" id="empty-no3d" hidden>
+          <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6 6 20v24l26 14 26-14V20zm0 6 19 10-19 10-19-10zM12 27l17 9v15l-17-9zm23 24V36l17-9v15z"/></svg>
+          <h2>Nothing to show in 3D</h2>
+          <p>The vehicles of this scenario use ArduPilot's built-in physics (<code>sitl:</code> models),
+            so Gazebo does not run and there is no scene to draw. They are on the map.</p>
+          <div class="row">
+            <button class="btn primary" id="empty-map">Show the map</button>
+            <button class="btn" id="empty-gazebo" title="Stops this simulation and opens the Gazebo example">Use a Gazebo scenario</button>
+          </div>
         </div>
       </div>
 

@@ -62,7 +62,7 @@ hangar-cloud serve
 Giriş anahtarı (token) içeren bir bağlantı yazar:
 
 ```
-hangar-cloud 0.2.1
+hangar-cloud 0.2.2
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -141,7 +141,8 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
   seçenekli ve bitmask parametreler liste ve kutucuklarla gelir, olağan aralığın dışındaki değerler
   önce sorulur. *changed* okumadan beri değişenleri gösterir (yer istasyonunun yaptıkları dahil).
   *Save* `.param` dosyası indirir; *Load* bir dosyayı araçla karşılaştırıp farkları uygular.
-- **Scenario (Senaryo)**: kayıtlı ya da örnek bir senaryo yükle, YAML'ını düzenle
+- **Scenario (Senaryo)**: kayıtlı ya da örnek bir senaryo yükle (`runway-3d` Gazebo'lu örnek;
+  `quickstart`taki gibi `sitl:` modeller ArduPilot'un dahili fiziğini kullanır, sadece haritada görünür), YAML'ını düzenle
   ([Hangar'ınkiyle](https://github.com/Enginar140/hangar/blob/main/README.tr.md#senaryo-dosyası) aynı
   biçim), uygula ve kaydet. Sorunlar başlatmadan önce gösterilir.
 - **Logs (Loglar)**: Hangar'ın yazdığı her şey, araçların mesajları dahil (PreArm hataları, mod

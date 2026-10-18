@@ -1,0 +1,12 @@
+# A fixed-wing and a quadcopter with a gimbal camera on a runway, in Gazebo: the 3D view,
+# the browser-drawn cameras and the map all have something to show.
+name: runway-3d
+world: skywalker_x8_runway
+headless: true
+vehicles:
+  - model: skywalker_x8
+    name: x8
+    pose: [0, 0, 0.3, 0, 0, 90]
+  - model: iris_with_gimbal
+    name: quad
+    pose: [8, -10, 0.2, 0, 0, 0]

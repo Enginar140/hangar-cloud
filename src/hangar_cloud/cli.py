@@ -67,7 +67,7 @@ def cmd_serve(args) -> int:
     settings = Settings.load()
     gz_python = find_gz_python(args.gz_python)
     token = load_token(args.token, args.new_token)
-    session = Session(settings, gz_python)
+    session = Session(settings, gz_python, gazebo_window=args.gazebo_window)
     app = create_app(session, token)
 
     print(f"hangar-cloud {__version__}")
@@ -108,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--token", help="login token (default: a random one, kept in the data folder)")
     s.add_argument("--new-token", action="store_true", help="make a new token; old links stop working")
     s.add_argument("--gz-python", help="Python with Gazebo's bindings, for the 3D view (default: found)")
+    s.add_argument("--gazebo-window", action="store_true",
+                   help="let Gazebo open its own window when a scenario is not headless (default: never)")
     s.add_argument("--trusted-proxy", help="address of the HTTPS proxy in front of this server")
     t = sub.add_parser("token", help="print the login token")
     t.add_argument("--new", action="store_true", help="make a new one")

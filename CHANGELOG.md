@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2 (2026-10-18)
+
+- **A Gazebo example opens by default** (`runway-3d`: a fixed-wing and a gimbal quadcopter on a
+  runway) when its world and models are installed, instead of the built-in-physics quickstart
+  that has nothing to show in 3D.
+- Vehicles with ArduPilot's built-in physics (`sitl:` models): the 3D view says why it is empty,
+  with buttons for the map and for the Gazebo example.
+- Gazebo always runs without its own window (nobody sits at a server's screen);
+  `serve --gazebo-window` keeps a scenario's own choice.
+
 ## 0.2.1 (2026-10-18)
 
 - **Start says why it cannot start**: preflight errors (a busy port, an unknown model) come back

@@ -26,6 +26,7 @@ BRIDGE = Path(__file__).with_name("gzbridge.py")
 TELEMETRY_EVERY = 0.5  # seconds
 KIND = re.compile(r'^\{"t":"(\w+)"')
 LINE_LIMIT = 64 * 1024 * 1024  # a big city's scene is one JSON line
+EXAMPLES = Path(__file__).with_name("scenarios")
 
 
 def find_gz_python(preferred: str | None = None) -> str | None:
@@ -71,6 +72,7 @@ class Hub:
 
 def scenario_dirs() -> list[tuple[str, Path]]:
     return [("saved", paths.data_dir() / "cloud" / "scenarios"),
+            ("example", EXAMPLES),
             ("example", paths.package_data() / "scenarios")]
 
 
@@ -89,20 +91,26 @@ def scenario_path(sid: str) -> Path:
     if sid == "last":
         return paths.state_dir() / "last-scenario.yaml"
     kind, _, name = sid.partition(":")
-    for k, d in scenario_dirs():
-        if k == kind and name and "/" not in name and not name.startswith("."):
+    if not name or "/" in name or name.startswith("."):
+        raise KeyError(sid)
+    dirs = [d for k, d in scenario_dirs() if k == kind]
+    for d in dirs:
+        if (d / f"{name}.yaml").exists():
             return d / f"{name}.yaml"
+    if dirs:
+        return dirs[0] / f"{name}.yaml"
     raise KeyError(sid)
 
 
 class Session:
-    def __init__(self, settings: Settings, gz_python: str | None) -> None:
+    def __init__(self, settings: Settings, gz_python: str | None, gazebo_window: bool = False) -> None:
         self.settings = settings
         self.catalog = Catalog(settings)
         self.gz_python = gz_python
         self.hub = Hub()
-        self.scenario: Scenario = Scenario.load(paths.package_data() / "scenarios" / "quickstart.yaml")
-        self.scenario_id = "example:quickstart"
+        self.gazebo_window = gazebo_window
+        self.scenario_id = self.default_scenario()
+        self.scenario: Scenario = Scenario.load(scenario_path(self.scenario_id))
         self.sup: Supervisor | None = None
         self.scene: str | None = None  # last scene message, for tabs that connect later
         self.stats: dict | None = None
@@ -111,6 +119,21 @@ class Session:
         self._telemetry: asyncio.Task | None = None
 
     # --- scenario --------------------------------------------------------
+
+    def default_scenario(self) -> str:
+        """The Gazebo example when its world and models are here (the 3D view is the point),
+        else ArduPilot's built-in physics."""
+        sc = Scenario.load(EXAMPLES / "runway-3d.yaml")
+        ok = self.gz_python and sc.world in self.catalog.worlds and \
+            all(self.catalog.get(v.model) for v in sc.vehicles)
+        return "example:runway-3d" if ok else "example:quickstart"
+
+    def _running_scenario(self) -> Scenario:
+        """Gazebo runs without its own window: nobody sits at a server's screen, and the page
+        shows the scene. `serve --gazebo-window` keeps the scenario's choice."""
+        if self.gazebo_window or self.scenario.headless:
+            return self.scenario
+        return self.scenario.model_copy(update={"headless": True})
 
     @property
     def state(self) -> SimState:
@@ -141,7 +164,7 @@ class Session:
         return self.scenario_id
 
     def preflight(self) -> dict:
-        pf = Supervisor(self.scenario, self.settings, self.catalog).preflight()
+        pf = Supervisor(self._running_scenario(), self.settings, self.catalog).preflight()
         return {"errors": pf.errors, "warnings": pf.warnings}
 
     # --- running ---------------------------------------------------------
@@ -172,7 +195,8 @@ class Session:
     async def start(self) -> None:
         if self.busy:
             raise SupervisorError(f"simulation is {self.state.value}")
-        sup = Supervisor(self.scenario, self.settings, self.catalog, on_log=self._on_log, on_state=self._on_state)
+        sup = Supervisor(self._running_scenario(), self.settings, self.catalog, on_log=self._on_log,
+                         on_state=self._on_state)
         pf = await asyncio.to_thread(sup.preflight)
         if pf.errors:  # say why right away instead of only in the log
             raise SupervisorError("; ".join(pf.errors))

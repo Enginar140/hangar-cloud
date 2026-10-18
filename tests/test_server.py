@@ -177,3 +177,13 @@ def test_start_says_why_it_cannot(client, session):
     r = client.post("/api/start", headers=ORIGIN)
     assert r.status_code == 400 and "unknown model 'no_such_model'" in r.json()["detail"]
     assert session.sup is None  # nothing was started
+
+
+def test_gazebo_runs_without_a_window_and_examples_load(session):
+    assert session.scenario_id == "example:quickstart"  # no Gazebo bindings here: built-in physics
+    session.load("example:runway-3d")  # the cloud's own example
+    assert session.scenario.world == "skywalker_x8_runway"
+    session.set_scenario("world: w\nvehicles: [{model: sitl:plane}]")
+    assert session._running_scenario().headless and not session.scenario.headless
+    session.gazebo_window = True
+    assert not session._running_scenario().headless

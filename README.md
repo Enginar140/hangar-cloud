@@ -61,7 +61,7 @@ hangar-cloud serve
 It prints a link with a login token:
 
 ```
-hangar-cloud 0.2.1
+hangar-cloud 0.2.2
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -137,7 +137,8 @@ loginctl enable-linger $USER   # keep running after you log out
   choices and bitmasks get a list and checkboxes, values outside the usual range ask first.
   *changed* shows what changed since reading (also changes made by a ground station). *Save*
   downloads a `.param` file; *Load* compares one with the vehicle and applies the differences.
-- **Scenario**: load a saved or example scenario, edit its YAML (the same format as
+- **Scenario**: load a saved or example scenario (`runway-3d` is the Gazebo one; `sitl:` models
+  such as in `quickstart` use ArduPilot's built-in physics and show only on the map), edit its YAML (the same format as
   [Hangar's](https://github.com/Enginar140/hangar#scenario-files)), apply it and save it. Problems
   are shown before you start.
 - **Logs**: everything Hangar logs, including each vehicle's messages (PreArm failures, mode
