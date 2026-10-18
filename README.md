@@ -61,7 +61,7 @@ hangar-cloud serve
 It prints a link with a login token:
 
 ```
-hangar-cloud 0.1.0
+hangar-cloud 0.2.0
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 

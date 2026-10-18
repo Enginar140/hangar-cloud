@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-18)
 
 - **Map** (*Map* switch or `M`, Leaflet): vehicles with heading, altitude and path on
   OpenStreetMap or satellite imagery, home, follow, fit. **Click to fly a vehicle there**
@@ -10,7 +10,7 @@
   changes from a ground station, save and load `.param` files (Mission Planner, MAVProxy and QGC
   formats) with a diff before applying. *Get descriptions* downloads ArduPilot's parameter
   documentation for the vehicle's firmware version once and keeps it.
-- Needs Hangar 0.3.3 (parameter download, `goto`, firmware version, `first_instance`).
+- Uses Hangar 0.3.3 (parameter download, `goto`, firmware version, `first_instance`).
 - **Vehicle cameras drawn by the browser**: a window over the 3D view shows the selected vehicle's
   camera, from its Gazebo camera sensor (following the gimbal) or, without one, from where Hangar
   mounts cameras. Fill the view, save a PNG, or take frames for your own processing with
