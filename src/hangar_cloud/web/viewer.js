@@ -18,7 +18,12 @@ const TERRAIN_SINK = 0.05;  // m; vehicles resting on the ground never sink into
 const TRAIL_POINTS = 4000;
 const TRAIL_STEP = 0.3;  // m between trail points
 const SHADOW_RANGE = 40;  // m around the camera's target that gets shadows
+const FLAT = { minSize: 300, maxThickness: 0.05, stack: 1.0, spread: 10, maxEdge: 50 };  // see settleGround()
 const SKY = { top: new THREE.Color(0x3d78c4), horizon: new THREE.Color(0xd6e4f0), ground: new THREE.Color(0x8d969c) };
+
+// Gazebo cameras look along +x with +z up; Three's look along -z with +y up.
+const GZ_TO_THREE = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+  new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
 
 const fileUrl = (path) => '/files' + path.split('/').map(encodeURIComponent).join('/');
 
@@ -83,6 +88,8 @@ export class Viewer {
     this.vehicles = new Map();   // vehicle name -> { label, trail }
     this.savedTrails = new Map();
     this.cache = new Map();      // mesh file -> Promise<Object3D>
+    this.viewCams = new Map();   // vehicle name -> [{ name, cam, width, height, sensor }]
+    this.pip = null;             // { vehicle, index, el, full }
     this.target = null;          // followed vehicle
     this.mode = 'free';          // free | follow | chase | top
     this.chaseDistance = 8;
@@ -141,20 +148,111 @@ export class Viewer {
       }
       this.lastTarget.copy(p);
     }
-    this.controls.enabled = this.mode === 'free' || this.mode === 'follow';
+    this.controls.enabled = (this.mode === 'free' || this.mode === 'follow') && !(this.pip && this.pip.full);
     this.controls.update();
     this.updateTrails();
-    // shadows follow what you look at; the sky follows the camera
-    const t = this.controls.target;
-    this.sun.target.position.copy(t);
-    this.sun.position.copy(t).addScaledVector(this.sunDir, -300);
-    this.sky.position.copy(this.camera.position);
-    this.renderer.render(this.scene, this.camera);
-    this.labels.render(this.scene, this.camera);
+    this.render();
     if (this.onCamera) {
       const dir = this.camera.getWorldDirection(new THREE.Vector3());
       this.onCamera(Math.atan2(dir.x, dir.y) * 180 / Math.PI);  // 0 = looking north
     }
+  }
+
+  render() {
+    // shadows follow what you look at; the sky follows the camera
+    const t = this.controls.target;
+    this.sun.target.position.copy(t);
+    this.sun.position.copy(t).addScaledVector(this.sunDir, -300);
+    const W = this.container.clientWidth, H = this.container.clientHeight;
+    const view = this.pip && this.viewCamera(this.pip.vehicle, this.pip.index);
+    if (view && this.pip.full) {  // the vehicle's camera fills the view, letterboxed
+      this.renderer.setClearColor(0x05080c);
+      this.renderer.clear();
+      const k = Math.min(W / view.cam.aspect, H);
+      const w = k * view.cam.aspect, h = k;
+      this.renderView(view.cam, (W - w) / 2, (H - h) / 2, w, h);
+      this.labels.domElement.style.visibility = 'hidden';
+      return;
+    }
+    this.labels.domElement.style.visibility = '';
+    this.placeSky(this.camera);
+    this.renderer.render(this.scene, this.camera);
+    this.labels.render(this.scene, this.camera);
+    if (view && this.pip.el) {
+      const box = this.pip.el.getBoundingClientRect(), own = this.container.getBoundingClientRect();
+      if (box.width > 0) this.renderView(view.cam, box.left - own.left, box.top - own.top, box.width, box.height);
+    }
+  }
+
+  /** Draw what cam sees into a rectangle of the canvas (CSS pixels, from the top left). */
+  renderView(cam, x, y, w, h) {
+    const H = this.container.clientHeight;
+    const r = this.renderer;
+    this.placeSky(cam);
+    r.setViewport(x, H - y - h, w, h);
+    r.setScissor(x, H - y - h, w, h);
+    r.setScissorTest(true);
+    r.render(this.scene, cam);
+    r.setScissorTest(false);
+    r.setViewport(0, 0, this.container.clientWidth, H);
+  }
+
+  placeSky(cam) {  // around the camera, inside its far plane (beyond it the sky would be cut away)
+    this.sky.position.copy(cam.getWorldPosition(new THREE.Vector3()));
+    this.sky.scale.setScalar(cam.far * 0.5);
+  }
+
+  // --- vehicle cameras ---------------------------------------------------------
+
+  viewCameras(name) {
+    return this.viewCams.get(name) || [];
+  }
+
+  viewCamera(name, index = 0) {
+    const list = this.viewCameras(name);
+    return list[Math.min(index, list.length - 1)] || null;
+  }
+
+  addViewCamera(vehicle, entry) {
+    if (!this.viewCams.has(vehicle)) this.viewCams.set(vehicle, []);
+    this.viewCams.get(vehicle).push(entry);
+  }
+
+  setPip(pip) {
+    this.pip = pip;
+  }
+
+  /** The vehicle camera's picture as ImageData, for processing in the browser
+   *  (OpenCV.js, TensorFlow.js, ...). At most the size of this page's canvas. */
+  grabFrame(name, index = 0, maxWidth = 1280) {
+    const view = this.viewCamera(name, index);
+    if (!view) return null;
+    const canvas = this.renderer.domElement, pr = this.renderer.getPixelRatio();
+    let w = Math.min(view.width, maxWidth), h = Math.round(w / view.cam.aspect);
+    const k = Math.min(1, canvas.width / w, canvas.height / h);
+    w = Math.floor(w * k);
+    h = Math.floor(h * k);
+    // draw into the canvas's bottom-left corner, copy it out, then draw the page again
+    this.renderView(view.cam, 0, canvas.height / pr - h / pr, w / pr, h / pr);
+    const out = new OffscreenCanvas(w, h);
+    const ctx = out.getContext('2d');
+    ctx.drawImage(canvas, 0, canvas.height - h, w, h, 0, 0, w, h);
+    this.render();
+    return ctx.getImageData(0, 0, w, h);
+  }
+
+  async saveFrame(name, index = 0) {
+    const img = this.grabFrame(name, index, 4096);
+    if (!img) return false;
+    const c = new OffscreenCanvas(img.width, img.height);
+    c.getContext('2d').putImageData(img, 0, 0);
+    const blob = await c.convertToBlob({ type: 'image/png' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    return true;
   }
 
   // --- scene ---------------------------------------------------------------
@@ -170,6 +268,7 @@ export class Viewer {
     this.world.clear();
     this.entities.clear();
     this.models.clear();
+    this.viewCams.clear();
   }
 
   setScene(msg) {
@@ -183,7 +282,7 @@ export class Viewer {
     }
     let extent = 0;
     for (const m of s.models) {
-      this.models.set(m.name, this.model(m, this.world, m.static));
+      this.models.set(m.name, this.model(m, this.world, m.static, m.name));
       for (const link of m.links) {
         for (const v of link.visuals) {
           const g = v.geometry || {};
@@ -196,9 +295,10 @@ export class Viewer {
     this.scene.fog.near = extent * 0.35;
     this.scene.fog.far = extent * 1.6;
     if (!this.userMoved) this.frameVehicles();
+    this.settleGround();  // primitives are there now; meshes call it again when loaded
   }
 
-  model(m, parent, isStatic) {
+  model(m, parent, isStatic, top) {
     const g = new THREE.Group();
     g.name = m.name;
     g.userData.static = isStatic;
@@ -210,9 +310,17 @@ export class Viewer {
       setPose(lg, link.pose);
       this.entities.set(link.id, lg);
       for (const v of link.visuals) lg.add(this.visual(v, isStatic));
+      for (const c of link.cameras || []) {
+        const holder = new THREE.Group();
+        setPose(holder, c.pose);
+        const cam = viewCamera(c.hfov, c.width, c.height, c.near, c.far);
+        holder.add(cam);
+        lg.add(holder);
+        this.addViewCamera(top, { name: c.name, cam, width: c.width, height: c.height, sensor: true });
+      }
       g.add(lg);
     }
-    for (const n of m.models) this.model(n, g, isStatic || n.static);
+    for (const n of m.models) this.model(n, g, isStatic || n.static, top);
     parent.add(g);
     return g;
   }
@@ -228,7 +336,7 @@ export class Viewer {
     const shade = (obj) => {
       obj.traverse((o) => {
         if (!o.isMesh) return;
-        o.castShadow = !isStatic;
+        o.castShadow = !isStatic && v.cast_shadows !== false;
         o.receiveShadow = true;
       });
       return obj;
@@ -331,7 +439,53 @@ export class Viewer {
   track(promise) {
     this.pending++;
     this.dispatchLoading();
-    return promise.finally(() => { this.pending--; this.dispatchLoading(); });
+    return promise.finally(() => {
+      this.pending--;
+      this.dispatchLoading();
+      if (!this.pending) this.settleGround();
+    });
+  }
+
+  /** Worlds often stack huge flat layers a centimetre apart (a runway plane on a grass
+   *  plane, each two triangles kilometres wide). Over triangles that size the depth
+   *  buffer cannot tell them apart and the wrong one shows, differently from run to run.
+   *  Keep the top layer where it is and spread the ones below it further down. */
+  settleGround() {
+    const flats = [];
+    this.world.traverse((o) => {
+      if (!o.isMesh) return;
+      if (!o.userData.split) {  // huge triangles clip and interpolate badly: cut them up once
+        const box = new THREE.Box3().setFromObject(o);
+        const size = box.getSize(new THREE.Vector3());
+        if (Math.max(size.x, size.y) > FLAT.minSize && o.geometry.attributes.position.count < 5000) {
+          const edge = Math.max(FLAT.maxEdge, Math.max(size.x, size.y) / 100);
+          o.geometry = subdivide(o.geometry, o.getWorldScale(new THREE.Vector3()), edge);
+        }
+        o.userData.split = true;
+      }
+      if (o.userData.restZ !== undefined) {  // undo a previous pass
+        const wp = o.getWorldPosition(new THREE.Vector3());
+        wp.z += o.userData.restZ;
+        o.parent.worldToLocal(wp);
+        o.position.copy(wp);
+        delete o.userData.restZ;
+      }
+      const box = new THREE.Box3().setFromObject(o);
+      const size = box.getSize(new THREE.Vector3());
+      if (size.z < FLAT.maxThickness && Math.max(size.x, size.y) > FLAT.minSize) flats.push([o, box.max.z]);
+    });
+    if (flats.length < 2) return;
+    const top = Math.max(...flats.map(([, z]) => z));
+    for (const [o, z] of flats) {
+      const gap = top - z;
+      if (gap <= 1e-4 || gap > FLAT.stack) continue;
+      const drop = gap * (FLAT.spread - 1);
+      const wp = o.getWorldPosition(new THREE.Vector3());
+      wp.z -= drop;
+      o.parent.worldToLocal(wp);
+      o.position.copy(wp);
+      o.userData.restZ = drop;
+    }
   }
 
   dispatchLoading() {
@@ -381,6 +535,16 @@ export class Viewer {
         this.trailGroup.add(trail.line);
         entry = { label, trail };
         this.vehicles.set(v.name, entry);
+        if (!this.viewCameras(v.name).length && v.view) {  // no camera on the model: one at its usual mount
+          const [x, y, z, roll, pitch, yaw] = v.view.pose;
+          const holder = new THREE.Group();
+          holder.position.set(x, y, z);
+          holder.quaternion.setFromEuler(new THREE.Euler(...[roll, pitch, yaw].map(THREE.MathUtils.degToRad), 'ZYX'));
+          const cam = viewCamera(THREE.MathUtils.degToRad(v.view.hfov_deg), v.view.width, v.view.height, 0.05, 20000);
+          holder.add(cam);
+          obj.add(holder);
+          this.addViewCamera(v.name, { name: 'nose (browser only)', cam, width: v.view.width, height: v.view.height, sensor: false });
+        }
       }
       const t = v.telemetry || {};
       const el = entry.label.element.firstChild;
@@ -484,6 +648,47 @@ export class Viewer {
   }
 }
 
+/** Split triangles in half across their longest edge until no edge is longer than
+ *  maxEdge (measured with the object's world scale). Keeps normals and UVs. */
+function subdivide(geometry, scale, maxEdge) {
+  const src = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+  const names = ['position', 'normal', 'uv'].filter((n) => src.attributes[n]);
+  let tris = [];
+  const pos = src.attributes.position;
+  for (let i = 0; i < pos.count; i += 3) {
+    tris.push([0, 1, 2].map((k) => Object.fromEntries(names.map((n) => [n, Array.from({ length: src.attributes[n].itemSize }, (_, c) => src.attributes[n].array[(i + k) * src.attributes[n].itemSize + c])]))));
+  }
+  const len = (a, b) => Math.hypot((a[0] - b[0]) * scale.x, (a[1] - b[1]) * scale.y, (a[2] - b[2]) * scale.z);
+  const mid = (a, b) => Object.fromEntries(names.map((n) => [n, a[n].map((x, c) => (x + b[n][c]) / 2)]));
+  const out = [];
+  while (tris.length && out.length < 400000) {
+    const t = tris.pop();
+    const e = [len(t[0].position, t[1].position), len(t[1].position, t[2].position), len(t[2].position, t[0].position)];
+    const k = e.indexOf(Math.max(...e));
+    if (e[k] <= maxEdge) { out.push(t); continue; }
+    const a = t[k], b = t[(k + 1) % 3], c = t[(k + 2) % 3], m = mid(a, b);
+    tris.push([a, m, c], [m, b, c]);
+  }
+  out.push(...tris);
+  const geom = new THREE.BufferGeometry();
+  for (const n of names) {
+    const size = src.attributes[n].itemSize;
+    const arr = new Float32Array(out.length * 3 * size);
+    out.forEach((t, i) => t.forEach((v, j) => arr.set(v[n], (i * 3 + j) * size)));
+    geom.setAttribute(n, new THREE.BufferAttribute(arr, size));
+  }
+  for (const g of src.groups) geom.addGroup(0, out.length * 3, g.materialIndex);  // single-material planes in practice
+  return geom;
+}
+
+function viewCamera(hfov, width, height, near, far) {
+  const aspect = width / height;
+  const vfov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hfov / 2) / aspect));
+  const cam = new THREE.PerspectiveCamera(vfov, aspect, Math.max(near, 0.02), Math.min(far, 25000));
+  cam.quaternion.copy(GZ_TO_THREE);
+  return cam;
+}
+
 function makeSky() {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
@@ -501,7 +706,7 @@ function makeSky() {
         #include <colorspace_fragment>
       }`,
   });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(20000, 32, 16), mat);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), mat);
   sky.renderOrder = -1;
   sky.frustumCulled = false;
   return sky;
@@ -577,7 +782,11 @@ async function loadMesh(file) {
   // Blender exports its lamps and cameras into .dae files; Gazebo ignores them and so do we
   // (a quadcopter otherwise brings eight point lights that wash the ground out).
   const extras = [];
-  obj.traverse((o) => { if (o.isLight || o.isCamera) extras.push(o); });
+  obj.traverse((o) => {
+    if (o.isLight || o.isCamera) extras.push(o);
+    // Gazebo draws meshes one-sided: a camera inside its own housing does not see the housing
+    if (o.isMesh) for (const m of [].concat(o.material)) if (m) m.side = THREE.FrontSide;
+  });
   for (const o of extras) o.removeFromParent();
   return obj;
 }

@@ -128,6 +128,9 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
   **Follow** (araç hareket ederken etrafında döner), **Chase** (arkasından) ve **Top** (yukarıdan,
   kuzey yukarıda); `1`-`4` tuşları, serbest için `Esc`. Her aracın kendi rengi ve uçtuğu yerin
   **izi** vardır (*Trails* kapatır, çöp kutusu temizler). *Fit* tüm araçları gösterir.
+- **Camera (Kamera)**: seçili aracın kamerası 3D görüntünün üstünde bir pencerede (`C`); tüm
+  görüntüyü kaplayabilir (`F`), resmi PNG olarak kaydedebilir. Bkz.
+  [Araç kameraları](#araç-kameraları-tarayıcının-çizdiği).
 - **Scenario (Senaryo)**: kayıtlı ya da örnek bir senaryo yükle, YAML'ını düzenle
   ([Hangar'ınkiyle](https://github.com/Enginar140/hangar/blob/main/README.tr.md#senaryo-dosyası) aynı
   biçim), uygula ve kaydet. Sorunlar başlatmadan önce gösterilir.
@@ -136,6 +139,38 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 - **Connect (Bağlan)**: MAVLink çıkışları, simülasyon çalışırken değiştirilebilir. Windows'ta
   QGroundControl ya da Mission Planner için `tcpin:0.0.0.0:5790` ekle ve TCP `sunucu:5790`'a
   bağlan. Her aracın kendi script'lerin için iki boş SITL portu da vardır (orada listelenir).
+
+## Araç kameraları, tarayıcının çizdiği
+
+![Quadcopter'ın gimbal kamerası 3D görüntünün üstünde](docs/images/camera-pip.jpg)
+
+Gazebo bir kamerayı sunucuda çizer, H.264'e çevirir ve yayınlar. Bu sunucuya GPU ve işlemci
+yükü getirir, simülasyonun gerçek zamandan yavaş çalışmasının en yaygın sebebidir. Hangar Cloud
+bunun yerine **kameranın görüntüsünü senin tarayıcında çizebilir**, zaten 3D gösterdiği aynı
+sahneden:
+
+- Kamera sensörü olan bir model (iris gimbal'i ya da Hangar'ın `camera:` ile eklediği) o
+  sensörün konumunu, görüş açısını ve çözünürlüğünü kullanır; ArduPilot gimbal'i oynattıkça
+  görüntü de döner.
+- Kamerası olmayan bir modelde kamera, Hangar'ın takacağı yere konur (modelin `camera_pose`'u ya
+  da senaryodaki `camera.pose` ve `camera.fov`) ve *browser only* diye işaretlenir.
+
+![Aynı anda Gazebo'nun kamerası ve tarayıcınınki](docs/images/camera-compare.jpg)
+
+Görüntü Gazebo'nunkiyle aynı bakış açısıdır, ama Three.js çizer: ışık, gökyüzü ve malzemeler
+biraz farklı görünür, görüntü gürültüsü ve lens bozulması yoktur. Sadece tarayıcında vardır;
+sunucudaki programlar (OpenCV, ROS, otopilot) onu görmez. Onlar için
+[Hangar'ın kamera yayınlarını](https://github.com/Enginar140/hangar/blob/main/README.tr.md#kameralar)
+kullanmaya devam et.
+
+Görüntüyü tarayıcıda işlemek için, örneğin OpenCV.js ya da TensorFlow.js ile:
+
+```js
+// tarayıcının konsolunda ya da sayfaya yüklediğin bir script'te
+hangar.cameras('quad')                  // [{name: 'camera', width: 640, height: 480}, ...]
+const img = hangar.grabFrame('quad')    // ilk kameranın ImageData'sı
+const img2 = hangar.grabFrame('quad', 1, 1280)   // ikinci kamera, en fazla 1280 piksel genişlik
+```
 
 ## Güvenlik
 
@@ -146,8 +181,9 @@ açma; onlar için doğru araç VPN'dir.
 
 ## Yol haritası
 
-1. **Tarayıcıda kamera görüntüsü**: WebRTC ile ([MediaMTX](https://github.com/bluenviron/mediamtx)
-   üzerinden), başka bilgisayarlardaki OpenCV için de RTSP.
+1. **Gazebo'nun kendi kamera yayınları tarayıcıda**: WebRTC ile
+   ([MediaMTX](https://github.com/bluenviron/mediamtx) üzerinden), başka bilgisayarlardaki OpenCV
+   için de RTSP. Tarayıcının çizdiği kamera zaten var.
 2. **Parametre düzenleyici** ve araçları, görevleri gösteren bir **harita**.
 3. Gazebo, ArduPilot ve modellerle **Docker imajı**: VPS'te ya da Windows'ta (WSL2'li Docker
    Desktop) tek komutla çalıştırmak için.

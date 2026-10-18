@@ -128,3 +128,19 @@ def test_websocket_needs_the_cookie(session):
         with c.websocket_connect("/ws") as ws:
             ws.receive_text()
     assert e.value.code == 4401
+
+
+def test_browser_camera_mount():
+    from types import SimpleNamespace
+
+    from hangar.scenario import VehicleSpec
+
+    from hangar_cloud.session import view_camera
+
+    plane = SimpleNamespace(camera_pose=[0.7, 0, 0.05, 0, 0, 0])
+    v = SimpleNamespace(spec=VehicleSpec(model="x8"), model=plane)
+    assert view_camera(v) == {"pose": [0.7, 0, 0.05, 0, 0, 0], "hfov_deg": 60.0, "width": 1280, "height": 720}
+    v = SimpleNamespace(spec=VehicleSpec(model="x8", camera={"pose": [0, 0, -0.1, 0, 90, 0], "fov": 80}), model=plane)
+    assert view_camera(v)["pose"] == [0, 0, -0.1, 0, 90, 0] and view_camera(v)["hfov_deg"] == 80  # looks down
+    v = SimpleNamespace(spec=VehicleSpec(model="boat"), model=SimpleNamespace(camera_pose=None))
+    assert view_camera(v)["pose"][:3] == [0.3, 0.0, 0.05]  # the nose, by default

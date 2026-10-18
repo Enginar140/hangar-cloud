@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Vehicle cameras drawn by the browser**: a window over the 3D view shows the selected vehicle's
+  camera, from its Gazebo camera sensor (following the gimbal) or, without one, from where Hangar
+  mounts cameras. Fill the view, save a PNG, or take frames for your own processing with
+  `hangar.grabFrame()`. The server renders and encodes nothing for it. Checked against Gazebo's
+  own camera images from the same moment.
+- Huge flat surfaces (a runway plane over a 10 km grass plane) are split into smaller triangles,
+  and stacked layers are spread apart, so the right one shows from every angle.
+- Meshes are drawn one-sided like Gazebo; the sky always fits inside a camera's far plane;
+  `cast_shadows` from the SDF is honoured.
+
 ## 0.1.0 (2026-10-18)
 
 First version: Hangar's simulations from a browser.

@@ -70,6 +70,23 @@
         </div>
       </div>
 
+      <div id="pip" hidden>
+        <div class="pip-head">
+          <i></i><b></b><span class="pip-name"></span>
+          <select id="pip-cam" aria-label="Camera" hidden></select>
+          <button id="pip-save" class="btn ghost icon" title="Save this frame as PNG">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9l3-3 1.4 1.4L12 15.8 6.6 10.4 8 9l3 3zM5 18h14v2H5z"/></svg>
+          </button>
+          <button id="pip-full" class="btn ghost icon" title="Fill the view (F)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/></svg>
+          </button>
+          <button id="pip-close" class="btn ghost icon" title="Close (C)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4L12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/></svg>
+          </button>
+        </div>
+        <div class="pip-hole"></div>
+      </div>
+
       <div class="view-tools">
         <div class="segmented" id="cam-mode" role="group" aria-label="Camera">
           <button data-mode="free" class="active" title="Drag to orbit, right-drag to pan, scroll to zoom">Free</button>
@@ -79,6 +96,7 @@
         </div>
         <select id="follow" aria-label="Vehicle"><option value="">vehicle…</option></select>
         <button id="frame" class="btn ghost" title="Show all vehicles">Fit</button>
+        <button id="camera" class="btn ghost" title="The selected vehicle's camera, drawn by your browser (C)">Camera</button>
         <button id="trails" class="btn ghost active" title="Show the paths flown">Trails</button>
         <button id="clear-trails" class="btn ghost icon" title="Clear the paths">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>

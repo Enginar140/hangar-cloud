@@ -203,7 +203,7 @@ class Session:
             tel.pop("last_heartbeat", None)
             modes = v.link.mode_names() if v.link and v.link.telemetry.mav_type is not None else []
             out.append({"name": v.name, "model": v.spec.model, "sysid": v.ports.sysid, "status": v.status,
-                        "kind": v.model.type, "modes": modes,
+                        "kind": v.model.type, "modes": modes, "view": view_camera(v),
                         "gazebo": v.model.needs_gazebo, "pose": v.pose, "telemetry": tel,
                         "script_ports": [v.ports.serial1, v.ports.serial2]})
         return out
@@ -289,6 +289,17 @@ class Session:
         await self.stop()
         for t in list(self._tasks):
             t.cancel()
+
+
+def view_camera(v) -> dict:
+    """Where the browser puts a vehicle's camera when the model has no camera sensor:
+    the scenario's camera settings, else the model's usual mount, else the nose."""
+    from hangar.scenario import CameraSpec
+
+    spec = v.spec.camera or CameraSpec()
+    pose = spec.pose or v.model.camera_pose or [0.3, 0.0, 0.05, 0.0, 10.0, 0.0]
+    pose = list(pose) + [0.0] * (6 - len(pose))
+    return {"pose": pose, "hfov_deg": spec.fov, "width": spec.width, "height": spec.height}
 
 
 def _visuals(msg: dict):

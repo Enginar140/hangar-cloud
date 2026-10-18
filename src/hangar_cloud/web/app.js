@@ -7,7 +7,7 @@ const COLORS = ['#4da3ff', '#ffa94d', '#5fd68a', '#ff6b8b', '#b98cff', '#f5d04a'
 
 const state = {
   sim: 'idle', vehicles: [], logs: [], unseen: 0, selected: null, camera: 'free',
-  hasScene: false, startedAt: null, info: null,
+  hasScene: false, startedAt: null, info: null, pip: null,
 };
 
 const viewer = new Viewer($('#viewport'), {
@@ -175,7 +175,8 @@ function vehicleCard(v) {
       el('div', { class: 'controls' },
         el('div', { class: 'takeoff' }, el('button', { onclick: () => command(v.name, `takeoff ${alt.value || 20}`) }, 'Takeoff'), alt, el('span', {}, 'm')),
         el('button', { class: 'btn', onclick: run('rtl') }, 'RTL'),
-        el('button', { class: 'btn', onclick: run('land') }, 'Land')),
+        el('button', { class: 'btn', onclick: run('land') }, 'Land'),
+        v.gazebo ? el('button', { class: 'btn', onclick: () => openPip(v.name), title: 'Its camera, drawn by your browser' }, 'Camera') : null),
       el('details', { class: 'cmd' }, el('summary', {}, 'Command line'),
         el('div', { class: 'row' }, line, el('button', { class: 'btn', onclick: send }, 'Send')))));
 }
@@ -239,6 +240,10 @@ function renderHud() {
 
 function selectVehicle(name, toggle = false) {
   state.selected = toggle && state.selected === name ? null : name;
+  if (state.pip && state.selected && state.pip.vehicle !== state.selected) {
+    state.pip = { vehicle: state.selected, index: 0, full: state.pip.full };
+    updatePip();
+  }
   if (!state.selected) { setCameraMode('free'); return; }
   if (state.camera === 'free') setCameraMode('follow');
   else { applyCamera(); renderVehicles(); }
@@ -277,8 +282,73 @@ document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, textarea, select')) return;
   const keys = { 1: 'free', 2: 'follow', 3: 'chase', 4: 'top' };
   if (keys[e.key]) setCameraMode(keys[e.key]);
-  if (e.key === 'Escape') { state.selected = null; setCameraMode('free'); }
+  if (e.key === 'Escape') {
+    if (state.pip && state.pip.full) { state.pip.full = false; updatePip(); return; }
+    state.selected = null;
+    setCameraMode('free');
+  }
+  if (e.key === 'c' || e.key === 'C') { if (state.pip) closePip(); else openPip(state.selected); }
+  if ((e.key === 'f' || e.key === 'F') && state.pip) { state.pip.full = !state.pip.full; updatePip(); }
 });
+
+// --- vehicle camera (drawn by the browser) ---------------------------------
+
+function openPip(name) {
+  if (!name) {
+    const first = state.vehicles.find((v) => v.gazebo);
+    if (!first) { toast('No vehicle in 3D yet', 'bad'); return; }
+    name = first.name;
+  }
+  state.pip = { vehicle: name, index: 0, full: false };
+  if (state.selected !== name) selectVehicle(name);
+  updatePip();
+}
+
+function closePip() {
+  state.pip = null;
+  updatePip();
+}
+
+function updatePip() {
+  const box = $('#pip');
+  const p = state.pip;
+  const cams = p ? viewer.viewCameras(p.vehicle) : [];
+  $('#camera').classList.toggle('active', !!p);
+  if (!p || !cams.length) {
+    box.hidden = true;
+    viewer.setPip(null);
+    if (p && state.hasScene) toast(`${p.vehicle} is not in the 3D view`, 'bad');
+    return;
+  }
+  p.index = Math.min(p.index, cams.length - 1);
+  const cam = cams[p.index];
+  box.hidden = false;
+  box.classList.toggle('full', p.full);
+  box.style.setProperty('--c', colorOf(p.vehicle));
+  box.style.setProperty('--ar', `${cam.width} / ${cam.height}`);
+  box.querySelector('b').textContent = p.vehicle;
+  box.querySelector('.pip-name').textContent = cams.length > 1 ? '' : `${cam.name} · ${cam.width}×${cam.height}`;
+  const sel = $('#pip-cam');
+  sel.hidden = cams.length < 2;
+  if (cams.length > 1) {
+    sel.replaceChildren(...cams.map((c, i) => el('option', { value: i }, c.name)));
+    sel.value = p.index;
+  }
+  viewer.setPip({ vehicle: p.vehicle, index: p.index, el: box.querySelector('.pip-hole'), full: p.full });
+}
+
+$('#camera').onclick = () => (state.pip ? closePip() : openPip(state.selected));
+$('#pip-close').onclick = closePip;
+$('#pip-full').onclick = () => { state.pip.full = !state.pip.full; updatePip(); };
+$('#pip-cam').onchange = (e) => { state.pip.index = Number(e.target.value); updatePip(); };
+$('#pip-save').onclick = async () => {
+  if (!(await viewer.saveFrame(state.pip.vehicle, state.pip.index))) toast('No camera picture yet', 'bad');
+};
+// For your own processing in this browser:  const img = hangar.grabFrame('quad')  -> ImageData
+window.hangar = {
+  grabFrame: (vehicle, index = 0, maxWidth = 1280) => viewer.grabFrame(vehicle, index, maxWidth),
+  cameras: (vehicle) => viewer.viewCameras(vehicle).map((c) => ({ name: c.name, width: c.width, height: c.height })),
+};
 
 // --- scenario --------------------------------------------------------------
 
@@ -440,9 +510,11 @@ function handle(msg) {
       viewer.setVehicles(withColors(state.vehicles));
       if (state.camera !== 'free') applyCamera();
       renderHud();
+      if (state.pip) updatePip();
       break;
     case 'scene_clear':
       state.hasScene = false;
+      closePip();
       viewer.clear();
       state.logs = [];
       renderLogs();

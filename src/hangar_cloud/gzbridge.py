@@ -95,13 +95,24 @@ def visual(v) -> dict:
     return {"id": v.id, "name": v.name, "pose": pose(v.pose),
             "scale": vec(v.scale) if v.HasField("scale") else [1, 1, 1],
             "geometry": geometry(v.geometry), "material": material(v.material) if v.HasField("material") else None,
-            "transparency": round(v.transparency, 3)}
+            "transparency": round(v.transparency, 3), "cast_shadows": v.cast_shadows}
+
+
+def camera(sensor) -> dict | None:
+    """A camera on a link, so the browser can show its view (Gazebo need not render it)."""
+    if not sensor.HasField("camera"):
+        return None
+    c = sensor.camera
+    return {"id": sensor.id, "name": sensor.name, "pose": pose(sensor.pose), "hfov": round(c.horizontal_fov, 4),
+            "width": c.image_size.x, "height": c.image_size.y,
+            "near": round(c.near_clip, 3) or 0.1, "far": round(c.far_clip, 1) or 1000.0}
 
 
 def model(m) -> dict:
     return {"id": m.id, "name": m.name, "static": m.is_static, "pose": pose(m.pose),
             "links": [{"id": lk.id, "name": lk.name, "pose": pose(lk.pose),
-                       "visuals": [visual(v) for v in lk.visual]} for lk in m.link],
+                       "visuals": [visual(v) for v in lk.visual],
+                       "cameras": [c for c in (camera(x) for x in lk.sensor) if c]} for lk in m.link],
             "models": [model(n) for n in m.model]}
 
 

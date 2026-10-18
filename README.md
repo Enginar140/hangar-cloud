@@ -124,6 +124,8 @@ loginctl enable-linger $USER   # keep running after you log out
   and **Top** (from above, north up); keys `1`-`4`, `Esc` for free. Each vehicle has its own
   color and leaves a **trail** of where it flew (*Trails* switches them off, the bin clears them).
   *Fit* shows all vehicles.
+- **Camera**: the selected vehicle's camera in a window over the 3D view (`C`); it can fill the
+  view (`F`) and save the picture as PNG. See [Vehicle cameras](#vehicle-cameras-drawn-by-your-browser).
 - **Scenario**: load a saved or example scenario, edit its YAML (the same format as
   [Hangar's](https://github.com/Enginar140/hangar#scenario-files)), apply it and save it. Problems
   are shown before you start.
@@ -132,6 +134,36 @@ loginctl enable-linger $USER   # keep running after you log out
 - **Connect**: MAVLink outputs, changed while running. To use QGroundControl or Mission Planner
   on Windows, add `tcpin:0.0.0.0:5790` and connect to TCP `server:5790`. Each vehicle also has two
   free SITL ports for your own scripts (listed there).
+
+## Vehicle cameras, drawn by your browser
+
+![A quadcopter's gimbal camera over the 3D view](docs/images/camera-pip.jpg)
+
+Gazebo renders a camera on the server, encodes it to H.264 and streams it: that costs the server
+a GPU and CPU time, and is the most common reason a simulation runs slower than real time. Hangar
+Cloud can instead **draw the camera's view in your browser**, from the same scene it already
+shows in 3D:
+
+- A model with a camera sensor (the iris gimbal, or one Hangar added with `camera:`) uses that
+  sensor's position, field of view and resolution, and follows the gimbal as ArduPilot moves it.
+- A model without one gets a camera where Hangar would mount one (its `camera_pose`, or the
+  scenario's `camera.pose` and `camera.fov`), marked *browser only*.
+
+![Gazebo's camera and the browser's, at the same moment](docs/images/camera-compare.jpg)
+
+The picture is the same view as Gazebo's, but drawn by Three.js: lighting, sky and materials
+look a little different, and there is no image noise or lens distortion. It exists only in your
+browser, so programs on the server (OpenCV, ROS, the autopilot) do not see it; for those, keep
+using [Hangar's camera streams](https://github.com/Enginar140/hangar#cameras).
+
+To process the picture in the browser, for example with OpenCV.js or TensorFlow.js:
+
+```js
+// in the browser's console, or a script you load into the page
+hangar.cameras('quad')                  // [{name: 'camera', width: 640, height: 480}, ...]
+const img = hangar.grabFrame('quad')    // ImageData of the first camera
+const img2 = hangar.grabFrame('quad', 1, 1280)   // second camera, at most 1280 px wide
+```
 
 ## Security
 
@@ -142,8 +174,9 @@ open MAVLink ports to the internet; a VPN is the right tool for those.
 
 ## Roadmap
 
-1. **Camera streams in the browser** with WebRTC (through [MediaMTX](https://github.com/bluenviron/mediamtx)),
-   and RTSP for OpenCV on other computers.
+1. **Gazebo's own camera streams in the browser** with WebRTC (through
+   [MediaMTX](https://github.com/bluenviron/mediamtx)), and RTSP for OpenCV on other computers.
+   The browser-drawn camera is already there.
 2. **Parameter editor** and a **map** with vehicles and missions.
 3. **Docker image** with Gazebo, ArduPilot and the models, one command to run on a VPS or on
    Windows (Docker Desktop with WSL2).
