@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hangar Cloud</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="importmap">
+    {"imports": {"three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/"}}
+  </script>
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><img src="/favicon.svg" alt=""> Hangar <span>Cloud</span></div>
+    <div class="status">
+      <span id="state" class="pill">idle</span>
+      <span id="speed" class="metric" title="Simulated seconds per real second (×1 = real time)"></span>
+      <span id="scenario-name" class="muted"></span>
+    </div>
+    <div class="actions">
+      <button id="start" class="primary">Start</button>
+      <button id="stop" class="danger" hidden>Stop</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view">
+      <div id="viewport"></div>
+      <div id="view-empty" class="overlay">
+        <h2>No simulation running</h2>
+        <p>Pick a scenario on the right and press <b>Start</b>. Gazebo vehicles appear here in 3D.</p>
+      </div>
+      <div class="view-tools">
+        <label>Follow
+          <select id="follow"><option value="">free camera</option></select>
+        </label>
+        <button id="frame" title="Show all vehicles">Fit</button>
+        <span id="loading" class="muted"></span>
+        <span id="rtf" class="muted" title="Gazebo's real-time factor"></span>
+      </div>
+    </section>
+
+    <aside>
+      <nav class="tabs">
+        <button data-tab="vehicles" class="active">Vehicles</button>
+        <button data-tab="scenario">Scenario</button>
+        <button data-tab="logs">Logs <span id="log-badge" class="badge" hidden></span></button>
+        <button data-tab="connect">Connect</button>
+      </nav>
+
+      <div id="tab-vehicles" class="tab active">
+        <div id="vehicles"><p class="muted">Vehicles show up here when the simulation starts.</p></div>
+      </div>
+
+      <div id="tab-scenario" class="tab">
+        <div class="row">
+          <select id="scenarios"></select>
+          <button id="load">Load</button>
+        </div>
+        <textarea id="yaml" spellcheck="false" aria-label="Scenario YAML"></textarea>
+        <div class="row">
+          <button id="apply" class="primary">Apply</button>
+          <input id="save-name" placeholder="name to save as">
+          <button id="save">Save</button>
+        </div>
+        <div id="preflight"></div>
+        <details class="help">
+          <summary>Models and worlds on this server</summary>
+          <p><b>Models:</b> <span id="models" class="muted"></span></p>
+          <p><b>Worlds:</b> <span id="worlds" class="muted"></span></p>
+        </details>
+      </div>
+
+      <div id="tab-logs" class="tab">
+        <div class="row">
+          <select id="log-level">
+            <option value="info">everything</option>
+            <option value="event">events and problems</option>
+            <option value="warning">problems only</option>
+          </select>
+          <input id="log-filter" placeholder="filter">
+        </div>
+        <div id="logs"></div>
+      </div>
+
+      <div id="tab-connect" class="tab">
+        <h3>Ground stations and scripts</h3>
+        <p class="muted">Hangar forwards every vehicle's MAVLink to these outputs. Add one that listens on
+          this server, then connect to it from your computer. Changes apply at once.</p>
+        <ul id="outputs"></ul>
+        <div class="row">
+          <input id="output-url" value="tcpin:0.0.0.0:5790" aria-label="output">
+          <select id="output-scope"><option value="*">all vehicles</option></select>
+          <button id="output-add">Add</button>
+        </div>
+        <p class="muted">QGroundControl / Mission Planner on Windows: <b>TCP</b>, host <b id="host-name"></b>,
+          the port above. Over the internet, use a VPN such as Tailscale or WireGuard instead of opening the port.</p>
+        <h3>Each vehicle's own ports</h3>
+        <div id="script-ports" class="muted">—</div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

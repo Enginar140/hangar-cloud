@@ -1,0 +1,167 @@
+# Hangar Cloud
+
+**English** · [Türkçe](README.tr.md)
+
+Run [Hangar](https://github.com/Enginar140/hangar)'s ArduPilot SITL + Gazebo simulations on a
+Linux machine (a home server, a lab PC or a small VPS) and use them from a browser on any computer,
+including Windows: a live **3D view**, vehicle telemetry and commands, scenarios, logs, and
+connection details for QGroundControl or Mission Planner.
+
+![A quadcopter in flight, seen in the browser](docs/images/quad.jpg)
+
+> **Status: early (0.1).** One user at a time. The 3D view, commands, scenarios, logs and
+> MAVLink outputs work. Camera streams in the browser, a parameter editor and a map are next
+> (see [Roadmap](#roadmap)).
+
+## How it works
+
+```
+Browser (Windows, Mac, Linux, tablet)            Linux machine
+  3D view (Three.js) ◄── WebSocket ─────────  hangar-cloud
+  vehicles, commands, logs ◄─ HTTP ─────────    ├─ Hangar: Gazebo + ArduPilot SITLs + MAVLink router
+                                                └─ Gazebo bridge: scene and poses (gz-transport)
+QGroundControl / scripts ◄──── MAVLink TCP ───  outputs you add in the Connect tab
+```
+
+- **The 3D view is drawn by your browser, not by the server.** A small bridge reads the scene
+  (models, meshes, terrain) and the poses from Gazebo and sends them over a WebSocket, about 30
+  times a second. Three.js draws them on your computer's GPU. Gazebo itself runs headless on the
+  server, so a machine without a graphics card is fine for this.
+- Meshes (`.dae`, `.obj`, `.stl`, `.gltf`), textures and terrain are loaded from the server.
+  The server only sends files that belong to the current scene.
+- Worlds from [hangar-earth](https://github.com/Enginar140/hangar-earth) show their real
+  terrain and satellite imagery, with the exact heights Gazebo uses.
+- Everything else (starting Gazebo and the SITLs, ports, MAVLink) is Hangar's own code, so a
+  scenario behaves the same in the terminal UI and in the browser.
+
+| | |
+|---|---|
+| ![Fixed-wing on the ground](docs/images/plane.jpg) | ![Logs tab](docs/images/logs.jpg) |
+
+## Requirements
+
+On the Linux machine:
+
+- **Hangar** set up, so `hangar doctor` is happy: ArduPilot SITL, Gazebo Harmonic and the
+  vehicle models. See [Hangar's install guide](https://github.com/Enginar140/hangar#install).
+- **Gazebo's Python bindings** for the 3D view. They come with Gazebo Harmonic on Ubuntu
+  (`python3-gz-transport13`). Without them everything else still works; the page says the 3D view
+  is off.
+- [uv](https://docs.astral.sh/uv/).
+
+On your computer: a current browser with WebGL (Chrome, Edge, Firefox, Safari).
+
+## Install and run
+
+```bash
+uv tool install git+https://github.com/Enginar140/hangar-cloud
+hangar-cloud serve
+```
+
+It prints a link with a login token:
+
+```
+hangar-cloud 0.1.0
+  open  http://127.0.0.1:8080/?token=6vQ...
+```
+
+The token is kept in `~/.local/share/hangar/cloud/token` and survives restarts.
+`hangar-cloud token` prints it, and `hangar-cloud token --new` replaces it (old links stop working).
+
+### Reaching it from another computer
+
+Pick one:
+
+- **SSH tunnel** (nothing to open, works for a VPS):
+  `ssh -L 8080:localhost:8080 you@server`, then open `http://localhost:8080/?token=...` on
+  your computer. On Windows, `ssh` is built into PowerShell.
+- **Home network**: `hangar-cloud serve --host 0.0.0.0` and open `http://<server-ip>:8080/?token=...`.
+- **VPN** ([Tailscale](https://tailscale.com) or WireGuard): the server gets a private address
+  that only your devices can reach. This is also the safest way to connect QGroundControl.
+- **HTTPS on the internet**: keep `serve` on `127.0.0.1` and put a reverse proxy in front.
+  With [Caddy](https://caddyserver.com) and a domain name, this `Caddyfile` is enough (Caddy
+  gets the certificate itself):
+
+  ```
+  sim.example.com {
+      reverse_proxy 127.0.0.1:8080
+  }
+  ```
+
+### Keep it running
+
+A systemd user service starts it with the machine:
+
+```ini
+# ~/.config/systemd/user/hangar-cloud.service
+[Unit]
+Description=Hangar Cloud
+
+[Service]
+ExecStart=%h/.local/bin/hangar-cloud serve
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user enable --now hangar-cloud
+loginctl enable-linger $USER   # keep running after you log out
+```
+
+## Using it
+
+- **Start / Stop** at the top. The bar shows the simulation speed (×1 = real time); ArduPilot
+  needs a while of *simulated* time before it can arm, so a slow simulation takes longer.
+- **Vehicles**: status, mode, armed, altitude, speed, battery, GPS and sim speed for each
+  vehicle. Buttons for arm, disarm, takeoff, RTL and land, and a command line for anything
+  else: `mode GUIDED`, `takeoff 50`, `param set WPNAV_SPEED 800`.
+- **3D view**: drag to orbit, right-drag to pan, scroll to zoom. *Follow* keeps the camera on a
+  vehicle; *Fit* shows them all. Click a vehicle's label to follow it.
+- **Scenario**: load a saved or example scenario, edit its YAML (the same format as
+  [Hangar's](https://github.com/Enginar140/hangar#scenario-files)), apply it and save it. Problems
+  are shown before you start.
+- **Logs**: everything Hangar logs, including each vehicle's messages (PreArm failures, mode
+  changes), with filters.
+- **Connect**: MAVLink outputs, changed while running. To use QGroundControl or Mission Planner
+  on Windows, add `tcpin:0.0.0.0:5790` and connect to TCP `server:5790`. Each vehicle also has two
+  free SITL ports for your own scripts (listed there).
+
+## Security
+
+The token gives full control of the simulations on the machine: treat it like a password.
+The login cookie is `HttpOnly` and `SameSite=Strict`, and requests from other sites are refused.
+Use HTTPS (or an SSH tunnel or VPN) whenever the connection leaves your own network, and do not
+open MAVLink ports to the internet; a VPN is the right tool for those.
+
+## Roadmap
+
+1. **Camera streams in the browser** with WebRTC (through [MediaMTX](https://github.com/bluenviron/mediamtx)),
+   and RTSP for OpenCV on other computers.
+2. **Parameter editor** and a **map** with vehicles and missions.
+3. **Docker image** with Gazebo, ArduPilot and the models, one command to run on a VPS or on
+   Windows (Docker Desktop with WSL2).
+4. More than one user, each with their own simulations.
+
+## Licenses
+
+Hangar Cloud is [MIT](LICENSE). It bundles [three.js](https://threejs.org) (MIT,
+[license](src/hangar_cloud/web/vendor/three/LICENSE)). It installs nothing else by itself:
+ArduPilot (GPL-3.0), Gazebo (Apache-2.0) and the vehicle models come through Hangar, which asks
+before downloading anything and shows each license. ArduPilot and Gazebo run as separate programs.
+If you offer a server like this to other people, check the licenses of the models and worlds you
+show; some example models do not state one.
+
+## Development
+
+```bash
+git clone https://github.com/Enginar140/hangar-cloud && cd hangar-cloud
+uv sync
+uv run pytest -q
+uv run ruff check src tests scripts
+uv run hangar-cloud serve
+```
+
+The browser code is plain ES modules with no build step: edit `src/hangar_cloud/web/*.js` and
+reload the page.

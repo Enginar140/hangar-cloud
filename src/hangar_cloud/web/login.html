@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hangar Cloud</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login">
+  <form method="get" action="/login">
+    <div class="brand"><img src="/favicon.svg" alt=""> Hangar <span>Cloud</span></div>
+    <p class="muted">Paste the token that <code>hangar-cloud serve</code> printed
+      (or run <code>hangar-cloud token</code> on the server).</p>
+    <input name="token" type="password" autocomplete="current-password" placeholder="token" required autofocus>
+    <button class="primary">Log in</button>
+  </form>
+</body>
+</html>

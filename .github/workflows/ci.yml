@@ -1,0 +1,20 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --python ${{ matrix.python }}
+      - run: uv run ruff check src tests scripts
+      - run: uv run pytest -q
+      - run: uv run hangar-cloud --version

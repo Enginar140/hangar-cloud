@@ -1,0 +1,46 @@
+[project]
+name = "hangar-cloud"
+dynamic = ["version"]
+description = "Run ArduPilot SITL + Gazebo simulations on a server and use them from a browser: 3D view, logs, commands."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Enginar140" }]
+requires-python = ">=3.11"
+dependencies = [
+    "sitl-hangar @ https://github.com/Enginar140/hangar/releases/download/v0.3.2/sitl_hangar-0.3.2-py3-none-any.whl",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+]
+
+[project.scripts]
+hangar-cloud = "hangar_cloud.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Enginar140/hangar-cloud"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/hangar_cloud/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hangar_cloud"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
