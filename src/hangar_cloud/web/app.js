@@ -1,6 +1,7 @@
 import { Viewer } from './viewer.js';
 import { VehicleMap } from './map.js';
 import { ParamEditor } from './params.js';
+import { ScenarioForm } from './scenario.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LEVELS = { info: 0, event: 1, warning: 2, error: 3 };
@@ -10,6 +11,7 @@ const COLORS = ['#4da3ff', '#ffa94d', '#5fd68a', '#ff6b8b', '#b98cff', '#f5d04a'
 const state = {
   sim: 'idle', vehicles: [], logs: [], unseen: 0, selected: null, camera: 'free',
   hasScene: false, startedAt: null, info: null, pip: null, view: '3d', home: null,
+  scMode: 'form', scDirty: false,
 };
 let map = null;  // made the first time it is shown
 
@@ -57,6 +59,11 @@ const colorOf = (name) => {
   return COLORS[(i < 0 ? 0 : i) % COLORS.length];
 };
 
+async function restartVehicle(name) {
+  try { await api(`/api/vehicles/${encodeURIComponent(name)}/restart`, {}); toast(`${name}: restarting`); }
+  catch (e) { toast(`${name}: ${e.message}`, 'bad'); }
+}
+
 async function command(name, line) {
   try {
     const r = await api(`/api/vehicles/${encodeURIComponent(name)}/command`, { line });
@@ -76,6 +83,8 @@ function setSimState(s) {
   $('#stop').hidden = !busy;
   $('#stop').disabled = s === 'stopping';
   for (const id of ['#apply', '#load']) $(id).disabled = busy;
+  $('#yaml').readOnly = busy;
+  scenarioForm.setDisabled(busy);
   if (!busy) { setSpeed(null); state.startedAt = null; }
   renderEmpty();
 }
@@ -200,6 +209,7 @@ function vehicleCard(v) {
         el('div', { class: 'takeoff' }, el('button', { onclick: () => command(v.name, `takeoff ${alt.value || 20}`) }, 'Takeoff'), alt, el('span', {}, 'm')),
         el('button', { class: 'btn', onclick: run('rtl') }, 'RTL'),
         el('button', { class: 'btn', onclick: run('land') }, 'Land'),
+        el('button', { class: 'btn restart', onclick: () => restartVehicle(v.name), title: 'Start its SITL again' }, 'Restart'),
         v.gazebo ? el('button', { class: 'btn', onclick: () => openPip(v.name), title: 'Its camera, drawn by your browser' }, 'Camera') : null),
       el('details', { class: 'cmd' }, el('summary', {}, 'Command line'),
         el('div', { class: 'row' }, line, el('button', { class: 'btn', onclick: send }, 'Send')))));
@@ -239,6 +249,7 @@ function updateCard(card, v) {
     mode.value = modes.includes(t.mode) ? t.mode : modes[0];
     mode.disabled = !(v.modes && v.modes.length);
   }
+  card.querySelector('.restart').hidden = !(state.sim === 'running' && (v.status === 'crashed' || v.status === 'stopped'));
   const arm = card.querySelector('.arm');
   arm.textContent = t.armed ? 'Disarm' : 'Arm';
   arm.classList.toggle('armed', !!t.armed);
@@ -455,11 +466,12 @@ function renderInfo(info) {
   sel.replaceChildren(...info.scenarios.map((s) => el('option', { value: s.id }, `${s.name} (${s.kind})`)));
   if (info.scenario) {
     sel.value = info.scenario.id;
-    if (document.activeElement !== $('#yaml')) $('#yaml').value = info.scenario.yaml;
+    if (!state.scDirty) {
+      if (document.activeElement !== $('#yaml')) $('#yaml').value = info.scenario.yaml;
+      scenarioForm.set(info.scenario.data, info.catalog);
+    }
     $('#scenario-name').textContent = info.scenario.name || info.scenario.id.replace(/^\w+:/, '');
   }
-  $('#models').textContent = info.models.join(', ');
-  $('#worlds').textContent = info.worlds.join(', ');
   renderOutputs(info.outputs || {});
   state.home = info.home;
   map?.setHome(info.home);
@@ -473,19 +485,57 @@ function renderPreflight(pf) {
   if (!items.length) box.replaceChildren(el('div', { class: 'note good' }, 'Ready to start.'));
 }
 
+function setDirty(on) {
+  state.scDirty = on;
+  $('#sc-dirty').hidden = !on;
+  $('#apply').classList.toggle('pulse', on);
+}
+
+const scenarioForm = new ScenarioForm({ el, root: $('#sc-form'), onChange: () => setDirty(true) });
+$('#yaml').addEventListener('input', () => setDirty(true));
+
+// send what is being edited (form or YAML) to the server
+async function applyScenario() {
+  const body = state.scMode === 'form' ? { data: scenarioForm.get() } : { yaml: $('#yaml').value };
+  const pf = await api('/api/scenario', body);
+  setDirty(false);
+  renderPreflight(pf);
+  await refresh();
+  return pf;
+}
+
+function setScMode(mode) {
+  state.scMode = mode;
+  for (const b of document.querySelectorAll('#sc-mode button')) b.classList.toggle('active', b.dataset.mode === mode);
+  $('#sc-form').hidden = mode !== 'form';
+  $('#sc-yaml').hidden = mode !== 'yaml';
+}
+
+for (const b of document.querySelectorAll('#sc-mode button')) {
+  b.onclick = async () => {
+    if (b.dataset.mode === state.scMode) return;
+    if (state.scDirty) {  // carry the edits over: the server turns them into the other form
+      try { await applyScenario(); } catch (e) { toast(e.message, 'bad'); return; }
+    }
+    setScMode(b.dataset.mode);
+  };
+}
+
 $('#load').onclick = async () => {
-  try { renderPreflight(await api('/api/scenario/load', { id: $('#scenarios').value })); refresh(); }
+  try { setDirty(false); renderPreflight(await api('/api/scenario/load', { id: $('#scenarios').value })); refresh(); }
   catch (e) { toast(e.message, 'bad'); }
 };
 $('#apply').onclick = async () => {
-  try { renderPreflight(await api('/api/scenario', { yaml: $('#yaml').value })); toast('Scenario applied'); refresh(); }
-  catch (e) { toast(e.message, 'bad'); }
+  try {
+    const pf = await applyScenario();
+    toast(pf.errors.length ? 'Applied, but it cannot start yet: see below' : 'Scenario applied: press Start', pf.errors.length ? 'bad' : '');
+  } catch (e) { toast(e.message, 'bad'); }
 };
 $('#save').onclick = async () => {
   const name = $('#save-name').value.trim();
   if (!name) { toast('Type a name first', 'bad'); return; }
   try {
-    if (state.sim === 'idle' || state.sim === 'error') await api('/api/scenario', { yaml: $('#yaml').value });
+    if ((state.sim === 'idle' || state.sim === 'error') && state.scDirty) await applyScenario();
     await api('/api/scenario/save', { name });
     toast(`Saved as ${name}`);
     refresh();

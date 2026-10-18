@@ -27,7 +27,8 @@ COOKIE = "hangar_cloud"
 
 
 class ScenarioText(BaseModel):
-    yaml: str
+    yaml: str | None = None
+    data: dict | None = None  # from the form, instead of yaml
 
 
 class ScenarioRef(BaseModel):
@@ -87,6 +88,7 @@ def create_app(session: Session, token: str) -> FastAPI:
     async def info():
         return {"version": __version__, "hangar": hangar_version, "scenarios": list_scenarios(),
                 "models": sorted(session.catalog.vehicles), "worlds": sorted(session.catalog.worlds),
+                "catalog": session.catalog_info(),
                 **session.snapshot()}
 
     @app.post("/api/scenario")
@@ -94,7 +96,7 @@ def create_app(session: Session, token: str) -> FastAPI:
         if session.busy:
             raise HTTPException(409, "stop the simulation first")
         try:
-            session.set_scenario(body.yaml)
+            session.set_scenario(body.data if body.data is not None else (body.yaml or ""))
         except Exception as e:  # yaml or validation
             raise fail(e) from e
         return {"ok": True, **session.preflight()}
@@ -139,6 +141,14 @@ def create_app(session: Session, token: str) -> FastAPI:
             return {"result": await session.command(name, body.line)}
         except (SupervisorError, CommandError) as e:
             raise fail(e) from e
+
+    @app.post("/api/vehicles/{name}/restart")
+    async def restart(name: str):
+        try:
+            await session.restart_vehicle(name)
+        except SupervisorError as e:
+            raise fail(e) from e
+        return {"ok": True}
 
     @app.get("/api/vehicles/{name}/params")
     async def params(name: str):

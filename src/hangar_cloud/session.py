@@ -143,10 +143,12 @@ class Session:
     def busy(self) -> bool:
         return self.state in (SimState.STARTING, SimState.RUNNING, SimState.STOPPING)
 
-    def set_scenario(self, text: str, sid: str | None = None) -> Scenario:
+    def set_scenario(self, text: str | dict, sid: str | None = None) -> Scenario:
+        """From YAML text, or from the form's data (the same structure)."""
         import yaml
 
-        sc = Scenario.model_validate(yaml.safe_load(text) or {})
+        data = text if isinstance(text, dict) else (yaml.safe_load(text) or {})
+        sc = Scenario.model_validate(data)
         self.scenario, self.scenario_id = sc, sid or "edited"
         self.hub.publish({"t": "scenario", "id": self.scenario_id, "yaml": sc.dump()})
         return sc
@@ -223,6 +225,19 @@ class Session:
     async def command(self, vehicle: str, line: str) -> str:
         return await self._vehicle(vehicle).link.run(line)
 
+    async def restart_vehicle(self, vehicle: str) -> None:
+        if not self.sup:
+            raise SupervisorError("nothing is running")
+        await self.sup.restart_vehicle(vehicle)
+
+    def catalog_info(self) -> dict:
+        """What the scenario form offers: models (with their kind) and worlds."""
+        models = [{"name": m.name, "type": m.type, "gazebo": m.needs_gazebo, "camera": m.has_camera,
+                   "description": m.description} for m in sorted(self.catalog.vehicles.values(), key=lambda m: m.name)]
+        worlds = [{"name": w.name, "location": list(w.location) if w.location else None}
+                  for w in sorted(self.catalog.worlds.values(), key=lambda w: w.name)]
+        return {"models": models, "worlds": worlds}
+
     # --- parameters ----------------------------------------------------------
 
     def params(self, vehicle: str) -> dict:
@@ -279,7 +294,8 @@ class Session:
 
     def snapshot(self) -> dict:
         sup = self.sup
-        scenario = {"id": self.scenario_id, "name": self.scenario.name, "yaml": self.scenario.dump()}
+        scenario = {"id": self.scenario_id, "name": self.scenario.name, "yaml": self.scenario.dump(),
+                    "data": scenario_data(self.scenario)}
         return {"state": self.state.value, "scenario": scenario,
                 "vehicles": self.vehicles(), "sim_speed": sup.sim_speed() if sup else None,
                 "logs": [_log(x) for x in list(sup.logs)[-500:]] if sup else [],
@@ -359,6 +375,19 @@ class Session:
         await self.stop()
         for t in list(self._tasks):
             t.cancel()
+
+
+def scenario_data(sc: Scenario) -> dict:
+    """The scenario for the form: what the file says, with every vehicle's fields present."""
+    import yaml
+
+    data = yaml.safe_load(sc.dump()) or {}
+    for v, spec in zip(data.get("vehicles", []), sc.vehicles, strict=True):
+        v.setdefault("name", spec.name)
+        v.setdefault("params", {})
+        if not spec.placed:
+            v.pop("pose", None)
+    return data
 
 
 def _home(sup: Supervisor) -> dict | None:

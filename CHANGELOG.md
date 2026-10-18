@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 (2026-10-18)
+
+- **Scenario form**: edit the scenario without YAML: name, speed, world, start location, and the
+  vehicles: add, copy, remove, model (Gazebo or built-in physics), name, position and heading
+  (empty: placed automatically), a camera stream, parameters. Fields the form does not show
+  (outputs, camera details) are kept; the YAML editor is still there for them.
+- **Restart** button on a vehicle whose SITL exited (crashed or killed), while the simulation runs.
+
 ## 0.2.2 (2026-10-18)
 
 - **A Gazebo example opens by default** (`runway-3d`: a fixed-wing and a gimbal quadcopter on a

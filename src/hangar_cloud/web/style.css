@@ -249,6 +249,31 @@ aside { display: flex; flex-direction: column; min-height: 0; background: var(--
 .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
 .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; gap: 8px; }
 
+/* scenario form */
+.sc-modes { justify-content: space-between; }
+#sc-form { display: flex; flex-direction: column; gap: 10px; }
+#sc-form label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#sc-form label.check { flex-direction: row; }
+#sc-form small, #sc-form .lbl { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .4px; }
+#sc-form input, #sc-form select, #sc-form textarea { width: 100%; }
+#sc-form label.check input { width: auto; }
+#sc-form textarea { font: 12px var(--mono); resize: vertical; }
+#sc-form p { margin: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 3px; }
+.sc-home summary, .sc-params summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.sc-home[open] summary, .sc-params[open] summary { margin-bottom: 6px; }
+.sc-head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+.sc-head h3 { margin: 0; }
+.sc-vhead { display: flex; align-items: center; gap: 6px; }
+.sc-vhead input { flex: 1; font-weight: 600; }
+.sc-vhead .idx {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--panel-3); color: var(--muted); font-size: 12px; font-weight: 700;
+}
+.sc-actions { position: sticky; bottom: -14px; margin: 0 -14px -14px; padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
+.btn.pulse { box-shadow: 0 0 0 3px rgba(77, 163, 255, .35); }
+
 /* parameters */
 .small { font-size: 12px; }
 .check { display: inline-flex; gap: 5px; align-items: center; color: var(--muted); white-space: nowrap; cursor: pointer; }

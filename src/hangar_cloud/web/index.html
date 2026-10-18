@@ -146,21 +146,24 @@
             <button id="load" class="btn">Load</button>
           </div>
         </div>
-        <div class="field grow">
-          <label for="yaml">YAML</label>
+        <div class="row sc-modes">
+          <div class="segmented" id="sc-mode" role="group" aria-label="Edit as">
+            <button data-mode="form" class="active">Form</button>
+            <button data-mode="yaml">YAML</button>
+          </div>
+          <span id="sc-dirty" class="muted small" hidden>changed, not applied yet</span>
+        </div>
+        <div id="sc-form"></div>
+        <div class="field grow" id="sc-yaml" hidden>
+          <label for="yaml">YAML: everything, also outputs and cameras in detail</label>
           <textarea id="yaml" spellcheck="false"></textarea>
         </div>
-        <div class="row">
+        <div id="preflight"></div>
+        <div class="row sc-actions">
           <button id="apply" class="btn primary">Apply</button>
           <input id="save-name" placeholder="name to save as">
           <button id="save" class="btn">Save</button>
         </div>
-        <div id="preflight"></div>
-        <details class="help">
-          <summary>Models and worlds on this server</summary>
-          <p><b>Models</b> <span id="models"></span></p>
-          <p><b>Worlds</b> <span id="worlds"></span></p>
-        </details>
       </div>
 
       <div id="tab-params" class="tab">

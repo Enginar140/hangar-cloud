@@ -62,7 +62,7 @@ hangar-cloud serve
 Giriş anahtarı (token) içeren bir bağlantı yazar:
 
 ```
-hangar-cloud 0.2.2
+hangar-cloud 0.2.3
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -142,9 +142,12 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
   önce sorulur. *changed* okumadan beri değişenleri gösterir (yer istasyonunun yaptıkları dahil).
   *Save* `.param` dosyası indirir; *Load* bir dosyayı araçla karşılaştırıp farkları uygular.
 - **Scenario (Senaryo)**: kayıtlı ya da örnek bir senaryo yükle (`runway-3d` Gazebo'lu örnek;
-  `quickstart`taki gibi `sitl:` modeller ArduPilot'un dahili fiziğini kullanır, sadece haritada görünür), YAML'ını düzenle
+  `quickstart`taki gibi `sitl:` modeller ArduPilot'un dahili fiziğini kullanır, sadece haritada görünür).
+  **Form** olarak düzenle: dünya, başlangıç konumu ve araçlar (*+ Add vehicle* ile ekle, kopyala, sil;
+  model, ad, konum, kamera yayını, parametreler). Geri kalan her şey için **YAML**
   ([Hangar'ınkiyle](https://github.com/Enginar140/hangar/blob/main/README.tr.md#senaryo-dosyası) aynı
-  biçim), uygula ve kaydet. Sorunlar başlatmadan önce gösterilir.
+  biçim). *Apply*, sonra *Start*; bir adla kaydedebilirsin. Sorunlar başlatmadan önce gösterilir.
+  Bir aracın SITL'i kapanırsa kartında **Restart** düğmesi çıkar.
 - **Logs (Loglar)**: Hangar'ın yazdığı her şey, araçların mesajları dahil (PreArm hataları, mod
   değişiklikleri), filtrelerle.
 - **Connect (Bağlan)**: MAVLink çıkışları, simülasyon çalışırken değiştirilebilir. Windows'ta

@@ -187,3 +187,22 @@ def test_gazebo_runs_without_a_window_and_examples_load(session):
     assert session._running_scenario().headless and not session.scenario.headless
     session.gazebo_window = True
     assert not session._running_scenario().headless
+
+
+def test_scenario_from_the_form(client, session):
+    data = {"name": "form", "world": "skywalker_x8_runway", "outputs": ["udp:127.0.0.1:14551"],
+            "vehicles": [{"model": "sitl:copter", "name": "c1", "params": {"SIM_WIND_SPD": 3}},
+                         {"model": "sitl:plane", "name": "p1", "pose": [10, 0, 0, 0, 0, 90], "params": {}}]}
+    r = client.post("/api/scenario", json={"data": data}, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    sc = session.scenario
+    assert [v.name for v in sc.vehicles] == ["c1", "p1"] and sc.vehicles[0].params == {"SIM_WIND_SPD": 3}
+    assert not sc.vehicles[0].placed and sc.vehicles[1].placed
+    back = client.get("/api/info").json()["scenario"]["data"]
+    assert back["vehicles"][0] == {"model": "sitl:copter", "name": "c1", "params": {"SIM_WIND_SPD": 3}}
+    assert back["vehicles"][1]["pose"] == [10, 0, 0, 0, 0, 90] and back["outputs"] == ["udp:127.0.0.1:14551"]
+    bad = client.post("/api/scenario", json={"data": {"vehicles": [{"model": "x", "pose": [1, 2]}]}}, headers=ORIGIN)
+    assert bad.status_code == 400
+    assert client.post("/api/vehicles/c1/restart", headers=ORIGIN).status_code == 400  # nothing running
+    info = client.get("/api/info").json()["catalog"]
+    assert {"name", "type", "gazebo", "camera", "description"} <= set(info["models"][0])
