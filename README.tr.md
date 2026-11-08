@@ -62,7 +62,7 @@ hangar-cloud serve
 Giriş anahtarı (token) içeren bir bağlantı yazar:
 
 ```
-hangar-cloud 0.2.4
+hangar-cloud 0.2.5
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -158,6 +158,21 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 |---|---|
 | ![Harita: quadcopter'ın yolu ve "buraya uç" kutusu](docs/images/map.jpg) | ![Açıklamalarıyla parametre düzenleyici](docs/images/params.jpg) |
 
+### Başka yerden başlatılmış bir çalıştırmayı izlemek
+
+Aynı makinede başka bir programın başlattığı bir simülasyon (Hangar'ın terminal arayüzü,
+`hangar up`, bir betik) burada **izlenebilir**: 3D görünüm, harita, her aracın telemetrisi ve
+söyledikleri. Ona hiçbir şey gönderilmez: telemetri araçların salt okunur monitor portlarından
+gelir (Hangar 0.3.7 ve sonrası); izlerken kontroller, parametreler ve çıkışlar gizlenir.
+Çalıştırma bitince sayfa boşta durumuna döner.
+
+- Hiçbir şey çalışmıyorken boş görünüm süren çalıştırmaları listeler, her birinde **Watch** butonu
+  vardır.
+- Bir bağlantı doğrudan açar: `http://sunucu:8080/?attach=latest` ya da
+  `?attach=<çalıştırma klasörünün adı>` (`hangar status`'tan); ilk seferde `&token=...` ekle.
+- Betikler: `POST /api/attach {"run": "latest"}`; *Stop watching* (ya da `POST /api/stop`) yalnızca
+  izlemeyi bırakır, çalıştırma sürer.
+
 ### Başka bir simülasyonun yanında
 
 Makinede aynı anda tek bir Hangar simülasyonu çalışır: başka biri sürerken (Hangar'ın terminal
@@ -222,7 +237,8 @@ curl -s -H "$H" -X POST http://127.0.0.1:8080/api/stop
 | `GET /api/status` | `state` (idle, starting, running, stopping, error), `scenario`, `run` (çalıştırma klasörünün adı), `vehicles` (ad, durum), `sim_speed` ve `active`: makinedeki tüm Hangar çalıştırmaları, `hangar status --json` ile aynı liste |
 | `POST /api/scenario` | `{"yaml": "..."}` ya da `{"data": {...}}`: senaryoyu değiştirir; başlatma öncesi kontrolün sonucunu döner |
 | `POST /api/scenario/load` | `{"id": "saved:AD"}` ya da `{"id": "example:runway-3d"}` |
-| `POST /api/start`, `/api/stop` | başlatır ya da durdurur |
+| `POST /api/start`, `/api/stop` | başlatır ya da durdurur (başka yerden başlatılmış bir çalıştırmada stop yalnızca izlemeyi bırakır) |
+| `POST /api/attach` | `{"run": "latest"}` ya da bir çalıştırma klasörünün adı: başka bir programın başlattığı çalıştırmayı izler |
 | `POST /api/vehicles/AD/command` | `{"line": "mode GUIDED"}`: komut satırındaki herhangi bir komut |
 | `GET /api/info` | sayfanın açılışta gösterdiği her şey |
 

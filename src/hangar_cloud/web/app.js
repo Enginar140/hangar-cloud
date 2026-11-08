@@ -11,7 +11,7 @@ const COLORS = ['#4da3ff', '#ffa94d', '#5fd68a', '#ff6b8b', '#b98cff', '#f5d04a'
 const state = {
   sim: 'idle', vehicles: [], logs: [], unseen: 0, selected: null, camera: 'free',
   hasScene: false, startedAt: null, info: null, pip: null, view: '3d', home: null,
-  scMode: 'form', scDirty: false,
+  scMode: 'form', scDirty: false, watching: null,
 };
 let map = null;  // made the first time it is shown
 
@@ -85,9 +85,49 @@ function setSimState(s) {
   for (const id of ['#apply', '#load']) $(id).disabled = busy;
   $('#yaml').readOnly = busy;
   scenarioForm.setDisabled(busy);
-  if (!busy) { setSpeed(null); state.startedAt = null; }
+  if (!busy) { setSpeed(null); state.startedAt = null; setWatching(null); listElsewhere(); }
   renderEmpty();
 }
+
+// another program's run, shown read-only
+function setWatching(w) {
+  state.watching = w || null;
+  document.body.classList.toggle('watching', !!w);
+  const chip = $('#watching');
+  chip.hidden = !w;
+  if (w) chip.querySelector('span').textContent = `watching ${w.owner || w.run} · read-only`;
+  $('#stop').lastChild.textContent = w ? 'Stop watching' : 'Stop';
+  if (w) $('#scenario-name').textContent = w.scenario || w.run;
+  if (map) map.readOnly = !!w;
+  if (w && document.querySelector('.tabs button.active')?.dataset.tab === 'params') {
+    document.querySelector('.tabs button[data-tab="vehicles"]').click();
+  }
+}
+
+async function watchRun(run) {
+  try {
+    const r = await api('/api/attach', { run });
+    setWatching(r.watching);
+    toast(`Watching ${r.watching.run}`);
+  } catch (e) { toast(e.message, 'bad'); }
+}
+
+// runs going on that another program started, offered for watching
+async function listElsewhere() {
+  let runs = [];
+  try { runs = (await api('/api/status')).active || []; } catch { /* not important */ }
+  const box = $('#elsewhere');
+  box.hidden = !runs.length || state.sim !== 'idle' && state.sim !== 'error';
+  $('#elsewhere-list').replaceChildren(...runs.map((r) => {
+    const since = new Date(r.started * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const n = (r.vehicles || []).length;
+    return el('div', { class: 'run' },
+      el('div', {}, el('b', {}, r.scenario || r.run),
+        el('small', {}, `${r.owner || 'unknown'} · ${n} vehicle${n === 1 ? '' : 's'} · since ${since}`)),
+      el('button', { class: 'btn primary', onclick: () => watchRun(r.run) }, 'Watch'));
+  }));
+}
+setInterval(() => { if (state.sim === 'idle' || state.sim === 'error') listElsewhere(); }, 10000);
 
 // the message over the view: nothing running, or vehicles that Gazebo does not draw
 function renderEmpty() {
@@ -358,6 +398,7 @@ function setView(kind) {
         onSelect: (name) => selectVehicle(name, true),
         onGoto: (name, lat, lon, alt) => command(name, `goto ${lat.toFixed(7)} ${lon.toFixed(7)} ${alt}`),
       });
+      map.readOnly = !!state.watching;
       $('#map').addEventListener('unfollow', () => setMapFollow(false));
       map.setTrails($('#trails').classList.contains('active'));
       map.setHome(state.home);
@@ -473,6 +514,7 @@ function renderInfo(info) {
     $('#scenario-name').textContent = info.scenario.name || info.scenario.id.replace(/^\w+:/, '');
   }
   renderOutputs(info.outputs || {});
+  setWatching(info.watching);
   state.home = info.home;
   map?.setHome(info.home);
   state.startedAt = info.started_at;
@@ -633,6 +675,7 @@ function handle(msg) {
   switch (msg.t) {
     case 'hello':
       setSimState(msg.state);
+      setWatching(msg.watching);
       setSpeed(msg.sim_speed);
       state.startedAt = msg.started_at;
       state.vehicles = msg.vehicles;
@@ -699,3 +742,14 @@ function connect() {
 refresh();
 connect();
 renderVehicles();
+
+// a link that opens a run for watching: /?attach=<run> (or latest)
+{
+  const url = new URL(location.href);
+  const run = url.searchParams.get('attach');
+  if (run !== null) {
+    url.searchParams.delete('attach');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    watchRun(run || 'latest');
+  }
+}

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import threading
@@ -184,7 +185,10 @@ def main() -> int:
     # subscriptions active: first before subscribing, later with them paused.
     subscribed = False
     period = 1 / args.rate
+    parent = os.getppid()
     while True:
+        if os.getppid() != parent:  # the server is gone (killed): nobody reads us any more
+            return 0
         if rescan.is_set():
             if subscribed:
                 subscribe(False)

@@ -129,6 +129,19 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 410px; min-height: 0; 
 .empty-card h2 { color: var(--text); margin: 10px 0 12px; font-weight: 600; font-size: 22px; }
 .empty-card ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .empty-card p { margin: 0 0 14px; }
+#elsewhere { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 14px; }
+#elsewhere h3 { color: var(--text); margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+#elsewhere-list { display: grid; gap: 8px; }
+#elsewhere-list .run { display: flex; align-items: center; gap: 10px; }
+#elsewhere-list .run div { flex: 1; min-width: 0; }
+#elsewhere-list .run b { color: var(--text); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); font-size: 12px; white-space: nowrap; }
+.watch-chip svg { width: 14px; height: 14px; fill: currentColor; }
+.watch-chip[hidden] { display: none; }
+/* another program's run: everything that would send something is gone */
+body.watching .vehicle .controls, body.watching .vehicle .cmd,
+body.watching .tabs button[data-tab="params"], body.watching #tab-connect > .card:first-child { display: none !important; }
 
 .view-top-left, .view-top-right { position: absolute; top: 12px; display: flex; gap: 8px; align-items: center; }
 .view-top-left { left: 12px; }

@@ -34,6 +34,7 @@ export class VehicleMap {
     this.placed = false;
     this.showTrails = true;
     this.vehicles = [];
+    this.readOnly = false;  // watching another program's run: no "fly here"
     this.map.on('click', (e) => this.clicked(e.latlng));
     this.map.on('dragstart', () => { this.follow = false; container.dispatchEvent(new Event('unfollow')); });
   }
@@ -155,7 +156,7 @@ export class VehicleMap {
   // a click on the map: offer to fly a vehicle there
   clicked(latlng) {
     const flying = this.vehicles.filter((v) => v.status === 'online' && v.telemetry?.lat != null);
-    if (!flying.length) return;
+    if (!flying.length || this.readOnly) return;
     const pick = flying.find((v) => v.name === this.selected) || flying.find((v) => v.telemetry.armed) || flying[0];
     const box = document.createElement('form');
     box.className = 'goto';

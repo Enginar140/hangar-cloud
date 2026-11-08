@@ -21,6 +21,7 @@ from hangar.settings import Settings
 from hangar.supervisor import LogLine, SimState, Supervisor, SupervisorError
 
 from . import params as param_meta
+from .watch import Watcher, find_run
 
 BRIDGE = Path(__file__).with_name("gzbridge.py")
 TELEMETRY_EVERY = 0.5  # seconds
@@ -111,7 +112,7 @@ class Session:
         self.gazebo_window = gazebo_window
         self.scenario_id = self.default_scenario()
         self.scenario: Scenario = Scenario.load(scenario_path(self.scenario_id))
-        self.sup: Supervisor | None = None
+        self.sup: Supervisor | Watcher | None = None  # our own run, or one we watch
         self.scene: str | None = None  # last scene message, for tabs that connect later
         self.stats: dict | None = None
         self._bridge: asyncio.subprocess.Process | None = None
@@ -142,6 +143,19 @@ class Session:
     @property
     def busy(self) -> bool:
         return self.state in (SimState.STARTING, SimState.RUNNING, SimState.STOPPING)
+
+    @property
+    def watching(self) -> dict | None:
+        """The run we watch (read-only), if that is what is going on."""
+        sup = self.sup
+        if not (isinstance(sup, Watcher) and self.busy):
+            return None
+        e = sup.entry
+        return {"run": e.get("run"), "owner": e.get("owner"), "pid": e.get("pid"), "scenario": e.get("scenario")}
+
+    def _not_watching(self) -> None:
+        if self.watching:
+            raise SupervisorError("watching another program's run: read-only")
 
     def set_scenario(self, text: str | dict, sid: str | None = None) -> Scenario:
         """From YAML text, or from the form's data (the same structure)."""
@@ -180,6 +194,8 @@ class Session:
         self.hub.publish({"t": "state", "state": state.value})
         if state == SimState.RUNNING:
             self._spawn(self._run_bridge())
+        elif state == SimState.IDLE:  # also when a watched run ends by itself
+            self._spawn(self._stop_bridge())
 
     def _spawn(self, coro) -> asyncio.Task:
         task = asyncio.create_task(coro)
@@ -211,6 +227,20 @@ class Session:
             self._telemetry = self._spawn(self._send_telemetry())
         self._spawn(self.sup.start())
 
+    async def attach(self, run: str = "latest") -> dict:
+        """Watch a run another program started: its vehicles, the map and the 3D view, no commands."""
+        if self.busy:
+            raise SupervisorError(f"simulation is {self.state.value}: stop it first")
+        entry = await asyncio.to_thread(find_run, run)
+        watcher = await asyncio.to_thread(Watcher, entry, self.settings, self._on_state, self._on_log)
+        self.scene = self.stats = None
+        self.hub.publish({"t": "scene_clear"})
+        self.sup = watcher
+        if self._telemetry is None or self._telemetry.done():
+            self._telemetry = self._spawn(self._send_telemetry())
+        await watcher.start()
+        return self.watching or {}
+
     async def stop(self) -> None:
         await self._stop_bridge()
         if self.sup and self.state != SimState.IDLE:
@@ -225,9 +255,11 @@ class Session:
         return v
 
     async def command(self, vehicle: str, line: str) -> str:
+        self._not_watching()
         return await self._vehicle(vehicle).link.run(line)
 
     async def restart_vehicle(self, vehicle: str) -> None:
+        self._not_watching()
         if not self.sup:
             raise SupervisorError("nothing is running")
         await self.sup.restart_vehicle(vehicle)
@@ -250,10 +282,12 @@ class Session:
                 "params": {n: [x, link.param_is_int(n)] for n, x in sorted(link.params.items())}}
 
     async def fetch_params(self, vehicle: str) -> dict:
+        self._not_watching()
         await self._vehicle(vehicle).link.fetch_params()
         return self.params(vehicle)
 
     async def set_param(self, vehicle: str, name: str, value: float) -> float:
+        self._not_watching()
         return await self._vehicle(vehicle).link.set_param(name, value)
 
     async def param_meta(self, vehicle: str, download: bool = False) -> dict | None:
@@ -266,11 +300,13 @@ class Session:
         return data
 
     async def add_output(self, url: str, scope: str) -> None:
+        self._not_watching()
         if not self.sup:
             raise SupervisorError("nothing is running")
         await self.sup.add_output(url, scope)
 
     async def remove_output(self, url: str, scope: str) -> None:
+        self._not_watching()
         if not self.sup:
             raise SupervisorError("nothing is running")
         await self.sup.remove_output(url, scope)
@@ -301,13 +337,14 @@ class Session:
                 "run": sup.run_dir.name if sup and sup.run_dir and self.busy else None,
                 "started_at": sup.started_at if sup else None, "sim_speed": sup.sim_speed() if sup else None,
                 "vehicles": [{"name": v["name"], "status": v["status"]} for v in self.vehicles()],
+                "watching": self.watching,
                 "active": registry.active_runs()}
 
     def snapshot(self) -> dict:
         sup = self.sup
         scenario = {"id": self.scenario_id, "name": self.scenario.name, "yaml": self.scenario.dump(),
                     "data": scenario_data(self.scenario)}
-        return {"state": self.state.value, "scenario": scenario,
+        return {"state": self.state.value, "scenario": scenario, "watching": self.watching,
                 "vehicles": self.vehicles(), "sim_speed": sup.sim_speed() if sup else None,
                 "logs": [_log(x) for x in list(sup.logs)[-500:]] if sup else [],
                 "gazebo_view": bool(self.gz_python), "stats": self.stats,

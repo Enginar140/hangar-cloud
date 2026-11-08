@@ -61,7 +61,7 @@ hangar-cloud serve
 It prints a link with a login token:
 
 ```
-hangar-cloud 0.2.4
+hangar-cloud 0.2.5
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -154,6 +154,20 @@ loginctl enable-linger $USER   # keep running after you log out
 |---|---|
 | ![The map: a quadcopter's path and the fly-here box](docs/images/map.jpg) | ![The parameter editor with descriptions](docs/images/params.jpg) |
 
+### Watching a run started elsewhere
+
+A simulation started by another program on the same machine (Hangar's terminal UI, `hangar up`, a
+script) can be **watched** here: the 3D view, the map, every vehicle's telemetry and the logs of
+what it says. Nothing is sent to it: the vehicles' read-only monitor ports (Hangar 0.3.7 and later)
+carry their telemetry, and the controls, parameters and outputs are hidden while watching. When
+the run ends, the page goes back to idle.
+
+- With nothing running, the empty view lists the runs going on, each with a **Watch** button.
+- A link opens one directly: `http://server:8080/?attach=latest` or `?attach=<run folder name>`
+  (from `hangar status`); add `&token=...` the first time.
+- Scripts: `POST /api/attach {"run": "latest"}`; *Stop watching* (or `POST /api/stop`) only stops
+  watching, the run goes on.
+
 ### Next to another simulation
 
 Only one Hangar simulation runs at a time on the machine: while another one is going on (started
@@ -215,7 +229,8 @@ curl -s -H "$H" -X POST http://127.0.0.1:8080/api/stop
 | `GET /api/status` | `state` (idle, starting, running, stopping, error), `scenario`, `run` (the run folder's name), `vehicles` (name, status), `sim_speed`, and `active`: every Hangar run on the machine, the same list as `hangar status --json` |
 | `POST /api/scenario` | `{"yaml": "..."}` or `{"data": {...}}`: replace the scenario; returns the preflight result |
 | `POST /api/scenario/load` | `{"id": "saved:NAME"}` or `{"id": "example:runway-3d"}` |
-| `POST /api/start`, `/api/stop` | start or stop it |
+| `POST /api/start`, `/api/stop` | start or stop it (stop only stops watching a run started elsewhere) |
+| `POST /api/attach` | `{"run": "latest"}` or a run folder's name: watch a run another program started |
 | `POST /api/vehicles/NAME/command` | `{"line": "mode GUIDED"}`: any command of the command line |
 | `GET /api/info` | everything the page shows on load |
 

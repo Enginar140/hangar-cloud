@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.5 (2026-11-08)
+
+- **Watch a run started elsewhere** (needs Hangar 0.3.7's monitor ports): the 3D view, the map,
+  telemetry and the vehicles' messages of a simulation another program runs, read-only. The
+  empty view lists the runs going on with a *Watch* button; `/?attach=latest` (or a run name) opens
+  one from a link; `POST /api/attach` for scripts. Commands, parameters and outputs are off while
+  watching; *Stop watching* leaves the run alone. The page goes back to idle when the run ends.
+- The login link keeps its other query parameters (`?token=…&attach=…`).
+- The Gazebo bridge exits when the server is killed, instead of staying behind.
+
 ## 0.2.4 (2026-11-08)
 
 - **One simulation at a time** (Hangar 0.3.6): while another Hangar run is going on on the

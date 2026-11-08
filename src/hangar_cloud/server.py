@@ -9,7 +9,7 @@ import hmac
 import json
 import secrets
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
@@ -37,6 +37,10 @@ class ScenarioRef(BaseModel):
 
 class SaveAs(BaseModel):
     name: str
+
+
+class Attach(BaseModel):
+    run: str = "latest"
 
 
 class Command(BaseModel):
@@ -67,7 +71,9 @@ def create_app(session: Session, token: str) -> FastAPI:
         if given is not None:
             if not hmac.compare_digest(given, token):
                 return Response("wrong token", status_code=403)
-            resp = RedirectResponse(path if path != "/login" else "/", status_code=303)
+            rest = urlencode([(k, v) for k, v in request.query_params.multi_items() if k != "token"])
+            target = path if path != "/login" else "/"
+            resp = RedirectResponse(target + (f"?{rest}" if rest else ""), status_code=303)
             resp.set_cookie(COOKIE, token, httponly=True, samesite="strict", max_age=30 * 86400,
                             secure=request.url.scheme == "https")
             return resp
@@ -139,6 +145,13 @@ def create_app(session: Session, token: str) -> FastAPI:
         except SupervisorError as e:
             raise fail(e) from e
         return {"ok": True}
+
+    @app.post("/api/attach")
+    async def attach(body: Attach):
+        try:
+            return {"ok": True, "watching": await session.attach(body.run)}
+        except SupervisorError as e:
+            raise fail(e) from e
 
     @app.post("/api/stop")
     async def stop():
