@@ -61,7 +61,7 @@ hangar-cloud serve
 It prints a link with a login token:
 
 ```
-hangar-cloud 0.2.3
+hangar-cloud 0.2.4
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -154,11 +154,16 @@ loginctl enable-linger $USER   # keep running after you log out
 |---|---|
 | ![The map: a quadcopter's path and the fly-here box](docs/images/map.jpg) | ![The parameter editor with descriptions](docs/images/params.jpg) |
 
-### Next to another SITL
+### Next to another simulation
 
-A scenario starts its SITLs at instance 0 (MAVLink on `tcp:5760`). If another SITL already runs on
-the machine, the preflight check names the busy ports; add `first_instance: 3` (any free number)
-to the scenario and every port moves by 10 per instance.
+Only one Hangar simulation runs at a time on the machine: while another one is going on (started
+from Hangar's terminal UI, `hangar up` or a script), *Start* says which one and does not start.
+Two simulations would share the CPU and GPU and both run slower. `hangar status` on the server
+lists what is running.
+
+A SITL started without Hangar is not refused: when it holds the ports of instance 0
+(`tcp:5760`), the scenario uses the next free instance and the preflight check says so. Add
+`first_instance: 3` (any free number) to choose it yourself; every port moves by 10 per instance.
 
 ## Vehicle cameras, drawn by your browser
 
@@ -190,10 +195,35 @@ const img = hangar.grabFrame('quad')    // ImageData of the first camera
 const img2 = hangar.grabFrame('quad', 1, 1280)   // second camera, at most 1280 px wide
 ```
 
+## Scripts
+
+Everything the page does goes through an HTTP API, which scripts on the server (or anywhere they
+can reach it) can use with the token in a header:
+
+```bash
+TOKEN=$(hangar-cloud token)
+H="Authorization: Bearer $TOKEN"
+curl -s -H "$H" http://127.0.0.1:8080/api/status            # state, run, vehicles, all Hangar runs
+curl -s -H "$H" -X POST http://127.0.0.1:8080/api/scenario/load -d '{"id":"saved:duel"}' \
+     -H 'Content-Type: application/json'
+curl -s -H "$H" -X POST http://127.0.0.1:8080/api/start      # 400 with the reason if it cannot
+curl -s -H "$H" -X POST http://127.0.0.1:8080/api/stop
+```
+
+| | |
+|---|---|
+| `GET /api/status` | `state` (idle, starting, running, stopping, error), `scenario`, `run` (the run folder's name), `vehicles` (name, status), `sim_speed`, and `active`: every Hangar run on the machine, the same list as `hangar status --json` |
+| `POST /api/scenario` | `{"yaml": "..."}` or `{"data": {...}}`: replace the scenario; returns the preflight result |
+| `POST /api/scenario/load` | `{"id": "saved:NAME"}` or `{"id": "example:runway-3d"}` |
+| `POST /api/start`, `/api/stop` | start or stop it |
+| `POST /api/vehicles/NAME/command` | `{"line": "mode GUIDED"}`: any command of the command line |
+| `GET /api/info` | everything the page shows on load |
+
 ## Security
 
 The token gives full control of the simulations on the machine: treat it like a password.
 The login cookie is `HttpOnly` and `SameSite=Strict`, and requests from other sites are refused.
+Scripts send the token as `Authorization: Bearer`, which a browser never adds by itself.
 Use HTTPS (or an SSH tunnel or VPN) whenever the connection leaves your own network, and do not
 open MAVLink ports to the internet; a VPN is the right tool for those.
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4 (2026-11-08)
+
+- **One simulation at a time** (Hangar 0.3.6): while another Hangar run is going on on the
+  machine, *Start* names it and does not start. Runs started here are shown as `hangar-cloud` in
+  `hangar status`.
+- **Scripts**: the API takes the token as `Authorization: Bearer`, and **`GET /api/status`** gives
+  the state, the run, the vehicles and every Hangar run on the machine.
+- The preflight check no longer reports the running simulation's own ports while it runs.
+
 ## 0.2.3 (2026-10-18)
 
 - **Scenario form**: edit the scenario without YAML: name, speed, world, start location, and the

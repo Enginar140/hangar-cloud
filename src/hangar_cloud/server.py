@@ -71,6 +71,12 @@ def create_app(session: Session, token: str) -> FastAPI:
             resp.set_cookie(COOKIE, token, httponly=True, samesite="strict", max_age=30 * 86400,
                             secure=request.url.scheme == "https")
             return resp
+        bearer = request.headers.get("authorization", "")
+        if bearer.lower().startswith("bearer "):
+            # scripts: the token in a header, which browsers never send by themselves
+            if not authorised(bearer[7:].strip()):
+                return JSONResponse({"error": "wrong token"}, status_code=401)
+            return await call_next(request)
         if not authorised(request.cookies.get(COOKIE)):
             if path == "/":
                 return FileResponse(WEB / "login.html")
@@ -90,6 +96,10 @@ def create_app(session: Session, token: str) -> FastAPI:
                 "models": sorted(session.catalog.vehicles), "worlds": sorted(session.catalog.worlds),
                 "catalog": session.catalog_info(),
                 **session.snapshot()}
+
+    @app.get("/api/status")
+    async def status():
+        return {"version": __version__, "hangar": hangar_version, **session.status()}
 
     @app.post("/api/scenario")
     async def set_scenario(body: ScenarioText):

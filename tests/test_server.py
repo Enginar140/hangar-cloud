@@ -206,3 +206,39 @@ def test_scenario_from_the_form(client, session):
     assert client.post("/api/vehicles/c1/restart", headers=ORIGIN).status_code == 400  # nothing running
     info = client.get("/api/info").json()["catalog"]
     assert {"name", "type", "gazebo", "camera", "description"} <= set(info["models"][0])
+
+
+def test_scripts_use_a_bearer_token(session):
+    c = TestClient(create_app(session, TOKEN))
+    assert c.get("/api/status").status_code == 401
+    assert c.get("/api/status", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    r = c.get("/api/status", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert r.status_code == 200
+    st = r.json()
+    assert st["state"] == "idle" and st["run"] is None and st["active"] == []
+    assert st["scenario"]["id"] == "example:quickstart"
+    # a script may post without an Origin, with the header
+    r = c.post("/api/scenario", json={"yaml": "vehicles: [{model: sitl:copter}]"},
+               headers={"Authorization": f"Bearer {TOKEN}"})
+    assert r.status_code == 200
+
+
+def test_another_hangar_run_blocks_the_start(client, session):
+    import subprocess
+    import sys
+
+    from hangar import registry
+
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        registry.active_dir().mkdir(parents=True, exist_ok=True)
+        (registry.active_dir() / f"{proc.pid}-r.json").write_text(json.dumps({
+            "pid": proc.pid, "proc_start": registry.process_start(proc.pid), "run_dir": "/x/r", "run": "r",
+            "state": "running", "started": 1, "owner": "savasan:t7", "scenario": "duel", "vehicles": []}))
+        assert [r["owner"] for r in client.get("/api/status").json()["active"]] == ["savasan:t7"]
+        r = client.post("/api/start", headers=ORIGIN)
+        assert r.status_code == 400 and "another Hangar run is going on: 'duel'" in r.json()["detail"]
+        assert session.sup is None
+    finally:
+        proc.kill()
+        proc.wait()

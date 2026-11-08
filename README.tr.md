@@ -62,7 +62,7 @@ hangar-cloud serve
 Giriş anahtarı (token) içeren bir bağlantı yazar:
 
 ```
-hangar-cloud 0.2.3
+hangar-cloud 0.2.4
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -158,11 +158,17 @@ loginctl enable-linger $USER   # oturumu kapatınca da çalışmaya devam etsin
 |---|---|
 | ![Harita: quadcopter'ın yolu ve "buraya uç" kutusu](docs/images/map.jpg) | ![Açıklamalarıyla parametre düzenleyici](docs/images/params.jpg) |
 
-### Başka bir SITL'in yanında
+### Başka bir simülasyonun yanında
 
-Bir senaryo SITL'lerini 0. instance'tan başlatır (MAVLink `tcp:5760`'ta). Makinede zaten başka bir
-SITL çalışıyorsa başlatma öncesi kontrol dolu portları söyler; senaryoya `first_instance: 3` (boş
-herhangi bir sayı) ekle, her instance portları 10 kaydırır.
+Makinede aynı anda tek bir Hangar simülasyonu çalışır: başka biri sürerken (Hangar'ın terminal
+arayüzünden, `hangar up` ile ya da bir betikten başlatılmış) *Start* hangisi olduğunu söyler ve
+başlamaz. İki simülasyon işlemciyi ve ekran kartını paylaşır, ikisi de yavaşlar. Sunucuda
+`hangar status` neyin çalıştığını listeler.
+
+Hangar olmadan başlatılmış bir SITL engel olmaz: 0. instance'ın portlarını (`tcp:5760`)
+tutuyorsa senaryo bir sonraki boş instance'ı kullanır ve başlatma öncesi kontrol bunu söyler.
+Kendin seçmek için senaryoya `first_instance: 3` (boş herhangi bir sayı) ekle; her instance
+portları 10 kaydırır.
 
 ## Araç kameraları, tarayıcının çizdiği
 
@@ -196,10 +202,35 @@ const img = hangar.grabFrame('quad')    // ilk kameranın ImageData'sı
 const img2 = hangar.grabFrame('quad', 1, 1280)   // ikinci kamera, en fazla 1280 piksel genişlik
 ```
 
+## Betikler
+
+Sayfanın yaptığı her şey bir HTTP API'si üzerinden olur; sunucudaki (ya da ona erişebilen)
+betikler token'ı başlıkta göndererek kullanabilir:
+
+```bash
+TOKEN=$(hangar-cloud token)
+H="Authorization: Bearer $TOKEN"
+curl -s -H "$H" http://127.0.0.1:8080/api/status            # durum, çalıştırma, araçlar, tüm Hangar çalıştırmaları
+curl -s -H "$H" -X POST http://127.0.0.1:8080/api/scenario/load -d '{"id":"saved:duel"}' \
+     -H 'Content-Type: application/json'
+curl -s -H "$H" -X POST http://127.0.0.1:8080/api/start      # başlayamazsa nedeniyle birlikte 400
+curl -s -H "$H" -X POST http://127.0.0.1:8080/api/stop
+```
+
+| | |
+|---|---|
+| `GET /api/status` | `state` (idle, starting, running, stopping, error), `scenario`, `run` (çalıştırma klasörünün adı), `vehicles` (ad, durum), `sim_speed` ve `active`: makinedeki tüm Hangar çalıştırmaları, `hangar status --json` ile aynı liste |
+| `POST /api/scenario` | `{"yaml": "..."}` ya da `{"data": {...}}`: senaryoyu değiştirir; başlatma öncesi kontrolün sonucunu döner |
+| `POST /api/scenario/load` | `{"id": "saved:AD"}` ya da `{"id": "example:runway-3d"}` |
+| `POST /api/start`, `/api/stop` | başlatır ya da durdurur |
+| `POST /api/vehicles/AD/command` | `{"line": "mode GUIDED"}`: komut satırındaki herhangi bir komut |
+| `GET /api/info` | sayfanın açılışta gösterdiği her şey |
+
 ## Güvenlik
 
 Anahtar, makinedeki simülasyonların tam kontrolünü verir: şifre gibi sakla. Giriş çerezi
-`HttpOnly` ve `SameSite=Strict`'tir, başka sitelerden gelen istekler reddedilir. Bağlantı kendi
+`HttpOnly` ve `SameSite=Strict`'tir, başka sitelerden gelen istekler reddedilir. Betikler
+token'ı `Authorization: Bearer` başlığıyla gönderir; tarayıcı bunu kendiliğinden eklemez. Bağlantı kendi
 ağının dışına çıkıyorsa HTTPS (ya da SSH tüneli veya VPN) kullan. MAVLink portlarını internete
 açma; onlar için doğru araç VPN'dir.
 

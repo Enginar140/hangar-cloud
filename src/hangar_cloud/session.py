@@ -14,7 +14,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-from hangar import paths
+from hangar import paths, registry
 from hangar.catalog import Catalog
 from hangar.scenario import Scenario
 from hangar.settings import Settings
@@ -166,6 +166,8 @@ class Session:
         return self.scenario_id
 
     def preflight(self) -> dict:
+        if self.busy:  # checked when it started; its own ports and run would be reported now
+            return {"errors": [], "warnings": []}
         pf = Supervisor(self._running_scenario(), self.settings, self.catalog).preflight()
         return {"errors": pf.errors, "warnings": pf.warnings}
 
@@ -198,7 +200,7 @@ class Session:
         if self.busy:
             raise SupervisorError(f"simulation is {self.state.value}")
         sup = Supervisor(self._running_scenario(), self.settings, self.catalog, on_log=self._on_log,
-                         on_state=self._on_state)
+                         on_state=self._on_state, owner="hangar-cloud")
         pf = await asyncio.to_thread(sup.preflight)
         if pf.errors:  # say why right away instead of only in the log
             raise SupervisorError("; ".join(pf.errors))
@@ -291,6 +293,15 @@ class Session:
                         "gazebo": v.model.needs_gazebo, "pose": v.pose, "telemetry": tel,
                         "script_ports": [v.ports.serial1, v.ports.serial2]})
         return out
+
+    def status(self) -> dict:
+        """A short summary for scripts: what runs here, and every Hangar run on the computer."""
+        sup = self.sup
+        return {"state": self.state.value, "scenario": {"id": self.scenario_id, "name": self.scenario.name},
+                "run": sup.run_dir.name if sup and sup.run_dir and self.busy else None,
+                "started_at": sup.started_at if sup else None, "sim_speed": sup.sim_speed() if sup else None,
+                "vehicles": [{"name": v["name"], "status": v["status"]} for v in self.vehicles()],
+                "active": registry.active_runs()}
 
     def snapshot(self) -> dict:
         sup = self.sup
