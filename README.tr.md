@@ -62,7 +62,7 @@ hangar-cloud serve
 Giriş anahtarı (token) içeren bir bağlantı yazar:
 
 ```
-hangar-cloud 0.2.5
+hangar-cloud 0.2.6
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -173,6 +173,35 @@ gelir (Hangar 0.3.7 ve sonrası); izlerken kontroller, parametreler ve çıkış
 - Betikler: `POST /api/attach {"run": "latest"}`; *Stop watching* (ya da `POST /api/stop`) yalnızca
   izlemeyi bırakır, çalıştırma sürer.
 
+### Tekrar oynatma
+
+Kayıtlı çalıştırmalar 3D görünümde ve haritada bir zaman çubuğuyla **tekrar oynatılabilir**:
+oynat, duraklat, ×0.25 ile ×16 arası hız, istenen ana ya da olaydan olaya atla (`[` `]`, Boşluk
+oynatır). Olaylar zaman çubuğunda işaretler ve Logs sekmesinde satırlardır (birine tıklamak oraya
+atlar); bir panel seçili aracın o andaki kayıtlı değerlerini gösterir; bir olayın videosu oynatma
+oraya gelince açılır. Bunun için simülasyon çalışmaz: kaydı tarayıcı çizer, her araç için basit
+bir uçak, uçulan yollar ve kaydın bölgeleriyle.
+
+Kayıtlar nereden gelir:
+
+- **Hangar'ın kendi çalıştırmaları** (Hangar 0.3.8 ve sonrası izlerini kaydeder): kendiliğinden
+  listelenir.
+- **Başka programların tekrar oynatma dosyaları**: sunucuyu `--replay-dir KLASÖR` ile başlat
+  (birden çok klasör için tekrarla). Üç klasör derinliğe kadar her `replay.json`,
+  `replay.json.gz` ya da `*.replay.json[.gz]` listelenir. Yalnızca bu klasörlerin içindeki
+  dosyalar sunulur; olay videoları kendi tekrar oynatma dosyalarının yanında olmalıdır.
+
+Hiçbir şey çalışmıyorken boş görünüm bunları *Recorded runs* altında listeler. Bir bağlantı
+birini belli bir saniyede açar: `/?replay=h8_t7/replay.json.gz&t=289` (tekrar oynatma klasörüne
+göre yol) ya da `/?replay=run:<çalıştırma klasörü>`.
+
+Biçim (JSON, gzip olabilir) İngilizce README'de ayrıntılı: `version: 1`, `origin` (lat, lon, alt),
+`tracks` (her araç için `t`, `n`, `e`, `h`, `yaw`, `roll`, `pitch` sütunları, isteğe bağlı `team`,
+`model`, `fields`), `events` (`t`, `kind`, `who`, `target`, `text`, `video`) ve `zones` (`name`,
+`kind`: `boundary` ya da yasak bölge, `poly` [[n, e], ...], `floor`, `ceil`, `t_on`). Bir izin
+her sütunu `t` ile aynı uzunluktadır; bilinmeyen alanlar yok sayılır. Videolar her tarayıcının
+oynatması için H.264 MP4 olmalıdır.
+
 ### Başka bir simülasyonun yanında
 
 Makinede aynı anda tek bir Hangar simülasyonu çalışır: başka biri sürerken (Hangar'ın terminal
@@ -238,6 +267,8 @@ curl -s -H "$H" -X POST http://127.0.0.1:8080/api/stop
 | `POST /api/scenario` | `{"yaml": "..."}` ya da `{"data": {...}}`: senaryoyu değiştirir; başlatma öncesi kontrolün sonucunu döner |
 | `POST /api/scenario/load` | `{"id": "saved:AD"}` ya da `{"id": "example:runway-3d"}` |
 | `POST /api/start`, `/api/stop` | başlatır ya da durdurur (başka yerden başlatılmış bir çalıştırmada stop yalnızca izlemeyi bırakır) |
+| `GET /api/replays` | kayıtlı çalıştırmalar: `id`, `name`, `source`, `size`, `time` |
+| `GET /api/replay?id=ID` | bunlardan biri, replay JSON olarak (Hangar'ın çalıştırmaları anında dönüştürülür) |
 | `POST /api/attach` | `{"run": "latest"}` ya da bir çalıştırma klasörünün adı: başka bir programın başlattığı çalıştırmayı izler |
 | `POST /api/vehicles/AD/command` | `{"line": "mode GUIDED"}`: komut satırındaki herhangi bir komut |
 | `GET /api/info` | sayfanın açılışta gösterdiği her şey |

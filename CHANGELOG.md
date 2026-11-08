@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.6 (2026-11-08)
+
+- **Replays**: play recorded runs back in the 3D view and on the map with a time bar (×0.25 to
+  ×16, seek, event to event), the paths flown, zones (boundary and no-fly, from their time on),
+  the selected vehicle's recorded values and event videos. Hangar's own runs (Hangar 0.3.8) are
+  listed by themselves; replay files from other programs come from `serve --replay-dir DIR`.
+  Links: `/?replay=<id>&t=<seconds>`. The replay format (version 1) is in the README.
+- API: `GET /api/replays`, `GET /api/replay?id=`, `GET /api/replay/file` (videos, with seeking).
+
 ## 0.2.5 (2026-11-08)
 
 - **Watch a run started elsewhere** (needs Hangar 0.3.7's monitor ports): the 3D view, the map,

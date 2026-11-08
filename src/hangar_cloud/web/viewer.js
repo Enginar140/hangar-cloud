@@ -597,6 +597,50 @@ export class Viewer {
     for (const v of this.vehicles.values()) v.trail.line.visible = on;
   }
 
+  // a vehicle's path as given ([x, y, z] points), replacing what it drew so far: replays jump in time
+  setTrail(name, points) {
+    const tr = this.vehicles.get(name)?.trail;
+    if (!tr) return;
+    const pts = points.slice(-TRAIL_POINTS);
+    pts.forEach((p, i) => tr.positions.set(p, i * 3));
+    tr.count = pts.length;
+    tr.line.geometry.setDrawRange(0, tr.count);
+    tr.line.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // areas of a replay: a boundary (blue) or a no-fly zone (red), as see-through walls
+  setZones(zones) {
+    if (this.zoneGroup) this.zoneGroup.removeFromParent();
+    this.zoneGroup = new THREE.Group();
+    this.scene.add(this.zoneGroup);
+    for (const z of zones) {
+      const nofly = z.kind !== 'boundary';
+      const floor = z.floor ?? 0, ceil = z.ceil ?? (nofly ? 200 : floor + 150);
+      const pts = z.poly.map(([n, e]) => [e, n]);
+      const pos = [];
+      for (let i = 0; i < pts.length; i++) {
+        const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+        pos.push(x1, y1, floor, x2, y2, floor, x2, y2, ceil, x1, y1, floor, x2, y2, ceil, x1, y1, ceil);
+      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const color = nofly ? 0xff4d5e : 0x4da3ff;
+      const wall = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: nofly ? 0.22 : 0.08, side: THREE.DoubleSide, depthWrite: false }));
+      const outline = (h) => new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(pts.map(([x, y]) => new THREE.Vector3(x, y, h))),
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 }));
+      const g = new THREE.Group();
+      g.add(wall, outline(floor), outline(ceil));
+      g.userData.on = z.t_on ?? null;
+      this.zoneGroup.add(g);
+    }
+  }
+
+  setZoneTime(t) {
+    for (const g of this.zoneGroup?.children || []) g.visible = g.userData.on == null || t >= g.userData.on;
+  }
+
   clearTrails() {
     for (const v of this.vehicles.values()) {
       v.trail.count = 0;

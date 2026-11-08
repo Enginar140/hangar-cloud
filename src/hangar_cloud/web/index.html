@@ -53,6 +53,12 @@
             <li>Press <b>Start</b>. Gazebo vehicles appear here in 3D.</li>
             <li>Fly them from the <b>Vehicles</b> tab or QGroundControl.</li>
           </ol>
+          <div id="replays-box" hidden>
+            <h3>Recorded runs</h3>
+            <p class="small">Play one back: 3D, map, events, from a replay file or a Hangar run.</p>
+            <div class="row"><select id="replay-pick" aria-label="Recorded run"></select>
+              <button class="btn" id="replay-open">Play</button></div>
+          </div>
           <div id="elsewhere" hidden>
             <h3>Running on this computer</h3>
             <p class="small">Started by another program. Watch it here: 3D, map and telemetry, read-only.</p>
@@ -109,6 +115,35 @@
           </button>
         </div>
         <div class="pip-hole"></div>
+      </div>
+
+      <div id="rp-fields" hidden></div>
+      <div id="rp-video" hidden>
+        <div class="pip-head"><i></i><b></b><span class="pip-name"></span>
+          <button id="rp-video-close" class="btn ghost icon" title="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4L12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/></svg>
+          </button></div>
+        <video controls playsinline preload="metadata"></video>
+      </div>
+      <div id="replay-bar" hidden>
+        <button id="rp-play" class="btn primary icon" title="Play / pause (Space)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5v14l11-7z"/><path class="i-pause" d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>
+        </button>
+        <span id="rp-time">0:00</span>
+        <div class="rp-track"><div id="rp-ticks"></div>
+          <input type="range" id="rp-seek" min="0" max="1" step="0.05" value="0" aria-label="Time"></div>
+        <select id="rp-speed" aria-label="Speed" title="Playback speed">
+          <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+          <option value="2">×2</option><option value="4">×4</option><option value="8">×8</option><option value="16">×16</option>
+        </select>
+        <button id="rp-prev" class="btn ghost icon" title="Previous event ([)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zm3 7 10 7V5z"/></svg></button>
+        <button id="rp-next" class="btn ghost icon" title="Next event (])">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM5 19l10-7L5 5z"/></svg></button>
+        <span id="rp-event"></span>
+        <button id="rp-close" class="btn ghost icon" title="Close the replay">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4L12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/></svg>
+        </button>
       </div>
 
       <div class="view-tools">

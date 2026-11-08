@@ -2,6 +2,7 @@ import { Viewer } from './viewer.js';
 import { VehicleMap } from './map.js';
 import { ParamEditor } from './params.js';
 import { ScenarioForm } from './scenario.js';
+import { Replay, pose as replayPose } from './replay.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LEVELS = { info: 0, event: 1, warning: 2, error: 3 };
@@ -12,6 +13,7 @@ const state = {
   sim: 'idle', vehicles: [], logs: [], unseen: 0, selected: null, camera: 'free',
   hasScene: false, startedAt: null, info: null, pip: null, view: '3d', home: null,
   scMode: 'form', scDirty: false, watching: null,
+  replay: null,  // a recorded run being played back; live updates are not drawn meanwhile
 };
 let map = null;  // made the first time it is shown
 
@@ -75,6 +77,7 @@ async function command(name, line) {
 
 function setSimState(s) {
   state.sim = s;
+  if (state.replay) return;  // the top bar shows the replay
   const pill = $('#state');
   pill.querySelector('span').textContent = s;
   pill.className = 'state ' + s;
@@ -85,7 +88,7 @@ function setSimState(s) {
   for (const id of ['#apply', '#load']) $(id).disabled = busy;
   $('#yaml').readOnly = busy;
   scenarioForm.setDisabled(busy);
-  if (!busy) { setSpeed(null); state.startedAt = null; setWatching(null); listElsewhere(); }
+  if (!busy) { setSpeed(null); state.startedAt = null; setWatching(null); listElsewhere(); listReplays(); }
   renderEmpty();
 }
 
@@ -402,6 +405,7 @@ function setView(kind) {
       $('#map').addEventListener('unfollow', () => setMapFollow(false));
       map.setTrails($('#trails').classList.contains('active'));
       map.setHome(state.home);
+      if (state.replay) { setupReplayMap(); map.setVehicles(withColors(state.vehicles)); replaySeek(rp.t); }
     }
     map.resize();
     map.select(state.selected);
@@ -619,7 +623,8 @@ function logVisible(l) {
 }
 
 function logRow(l) {
-  return el('div', { class: 'log ' + l.level }, el('span', { class: 't' }, l.clock),
+  const at = l.replayT == null ? {} : { 'data-t': l.replayT, title: 'Jump here' };
+  return el('div', { class: 'log ' + l.level, ...at }, el('span', { class: 't' }, l.clock),
     el('span', { class: 's', title: l.source }, l.source), el('span', { class: 'x' }, l.text));
 }
 
@@ -672,6 +677,10 @@ function withColors(vehicles) {
 }
 
 function handle(msg) {
+  if (state.replay) {  // the view shows a recording: only keep the simulation's state in mind
+    if (msg.t === 'hello' || msg.t === 'state') state.sim = msg.state;
+    return;
+  }
   switch (msg.t) {
     case 'hello':
       setSimState(msg.state);
@@ -743,13 +752,206 @@ refresh();
 connect();
 renderVehicles();
 
-// a link that opens a run for watching: /?attach=<run> (or latest)
+// --- replays ----------------------------------------------------------------
+
+const rp = { t: 0, playing: false, speed: 1, last: 0, drawn: 0, eventIdx: -1, videoOf: null };
+
+async function listReplays() {
+  let items = [];
+  try { items = (await api('/api/replays')).replays || []; } catch { /* not important */ }
+  $('#replays-box').hidden = !items.length;
+  $('#replay-pick').replaceChildren(...items.slice(0, 200).map((r) => el('option', { value: r.id },
+    `${r.name}  ·  ${new Date(r.time * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`)));
+}
+$('#replay-open').onclick = () => { const id = $('#replay-pick').value; if (id) openReplay(id); };
+
+async function openReplay(id, t = null) {
+  let replay;
+  try {
+    const res = await fetch(`/api/replay?id=${encodeURIComponent(id)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    replay = new Replay(data, id);
+  } catch (e) { toast(`Replay: ${e.message}`, 'bad'); return; }
+  state.replay = replay;
+  document.body.classList.add('replaying');
+  closePip();
+  setWatching(null);
+  const pill = $('#state');
+  pill.querySelector('span').textContent = 'replay';
+  pill.className = 'state replay';
+  $('#scenario-name').textContent = replay.name;
+  $('#replay-bar').hidden = false;
+  $('#view-empty').hidden = true;
+  state.hasScene = true;
+  state.selected = null;
+  state.home = replay.origin;
+  // the events instead of the live log
+  state.logs = replay.events.map((e) => ({ time: e.t, clock: fmtT(e.t), source: e.who || 'replay', level: e.video ? 'warning' : 'event',
+    text: [e.kind, e.target && `→ ${e.target}`, e.text].filter(Boolean).join(' · '), replayT: e.t }));
+  renderLogs();
+  viewer.clear();
+  map?.clear();
+  viewer.setScene(replay.scene());
+  viewer.setZones(replay.zones);
+  if (map) setupReplayMap();
+  const seek = $('#rp-seek');
+  seek.min = replay.start; seek.max = replay.end;
+  const span = replay.end - replay.start || 1;
+  $('#rp-ticks').replaceChildren(...replay.events.map((e) => el('i', {
+    class: e.video ? 'video' : '', style: `left:${((e.t - replay.start) / span) * 100}%`, title: `${fmtT(e.t)} ${e.kind} ${e.text || ''}` })));
+  replaySeek(t ?? replay.start);
+  viewer.frameVehicles();
+  const u = new URL(location.href);
+  u.searchParams.set('replay', id);
+  u.searchParams.delete('t');
+  history.replaceState(null, '', u.pathname + u.search);
+}
+
+function setupReplayMap() {
+  const r = state.replay;
+  map.setHome(r.origin);
+  map.setZones(r.zones.map((z) => ({ kind: z.kind, on: z.t_on ?? null, latlngs: z.poly.map(([n, e]) => r.latlon(n, e)) })));
+  map.readOnly = true;
+}
+
+function fmtT(t) {
+  const s = Math.max(0, t);
+  return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+}
+
+// the recording at time t: 3D poses every frame, the rest a few times a second
+function replayDraw(t, full) {
+  const r = state.replay;
+  const samples = r.at(t);
+  viewer.updatePoses(samples.filter((s) => s.started).map(replayPose));
+  const now = performance.now();
+  if (!full && now - rp.drawn < 150) return;
+  rp.drawn = now;
+  state.vehicles = samples.map((s) => {
+    const tr = s.track, f = s.fields || {};
+    const [lat, lon] = s.started ? r.latlon(s.n, s.e) : [null, null];
+    return { name: tr.name, model: tr.model || tr.team || '—', kind: tr.kind, gazebo: true, sysid: 0,
+      status: !s.started ? 'booting' : s.ended ? 'stopped' : 'online', modes: [], params: null,
+      script_ports: [], view: null,
+      telemetry: s.started ? { lat, lon, alt_rel: s.h, heading: s.yaw, groundspeed: s.speed, climb: s.climb,
+        mode: f.mode ?? f.mod ?? f.faz ?? tr.team ?? '', armed: f.armed ? !!f.armed : false } : {} };
+  });
+  renderVehicles();
+  const colored = withColors(state.vehicles);
+  viewer.setVehicles(colored);
+  map?.setVehicles(colored);
+  viewer.setZoneTime(t);
+  map?.setZoneTime(t);
+  $('#rp-time').textContent = `${fmtT(t)} / ${fmtT(r.end)}`;
+  if (document.activeElement !== $('#rp-seek')) $('#rp-seek').value = t;
+  // the latest event so far
+  let i = -1;
+  while (i + 1 < r.events.length && r.events[i + 1].t <= t) i++;
+  if (i !== rp.eventIdx) {
+    // a video of an event passed since the last frame opens by itself while playing
+    const passed = rp.playing && rp.eventIdx >= -1 && i > rp.eventIdx ? r.events.slice(rp.eventIdx + 1, i + 1) : [];
+    const withVideo = passed.reverse().find((x) => x.video && t - x.t < 3);
+    rp.eventIdx = i;
+    const e = r.events[i];
+    $('#rp-event').textContent = e ? `${fmtT(e.t)} ${e.who ? e.who + ': ' : ''}${e.kind}${e.text ? ' · ' + e.text : ''}` : '';
+    if (withVideo) openVideo(withVideo);
+  }
+  renderFields(samples);
+}
+
+function renderFields(samples) {
+  const box = $('#rp-fields');
+  const s = samples.find((x) => x.track.name === state.selected) || samples.find((x) => Object.keys(x.track.fields).length);
+  if (!s || !s.started || !Object.keys(s.fields).length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.replaceChildren(el('b', {}, s.track.name), ...Object.entries(s.fields).flatMap(([k, v]) =>
+    [el('small', {}, k), el('span', { title: String(v ?? '') }, v === null || v === '' ? '—' : String(v))]));
+}
+
+// jump to t: the paths flown until then, then everything else
+function replaySeek(t) {
+  const r = state.replay;
+  rp.t = Math.min(Math.max(t, r.start), r.end);
+  rp.eventIdx = -2;
+  replayDraw(rp.t, true);
+  for (const tr of r.tracks) {
+    const path = r.path(tr, rp.t);
+    viewer.setTrail(tr.name, path.map(([n, e, h]) => [e, n, h ?? 0]));
+    map?.setTrail(tr.name, path.map(([n, e]) => r.latlon(n, e)));
+  }
+}
+
+function replayTick(now) {
+  requestAnimationFrame(replayTick);
+  if (state.replay && rp.playing) {
+    const dt = Math.min((now - rp.last) / 1000, 0.25);
+    rp.t += dt * rp.speed;
+    if (rp.t >= state.replay.end) { rp.t = state.replay.end; setPlaying(false); }
+    replayDraw(rp.t, false);
+  }
+  rp.last = now;
+}
+
+function setPlaying(on) {
+  if (on && rp.t >= state.replay.end) replaySeek(state.replay.start);
+  rp.playing = on;
+  $('#rp-play').classList.toggle('playing', on);
+}
+
+function stepEvent(dir) {
+  const ev = state.replay?.events || [];
+  const e = dir > 0 ? ev.find((x) => x.t > rp.t + 0.05) : [...ev].reverse().find((x) => x.t < rp.t - 0.5);
+  if (e) { replaySeek(e.t); if (e.video) openVideo(e); }
+}
+
+function openVideo(e) {
+  const box = $('#rp-video');
+  const v = box.querySelector('video');
+  const src = `/api/replay/file?id=${encodeURIComponent(state.replay.id)}&name=${encodeURIComponent(e.video)}`;
+  if (rp.videoOf !== src) { v.src = src; rp.videoOf = src; }
+  box.querySelector('b').textContent = e.who || '';
+  box.querySelector('.pip-name').textContent = `${fmtT(e.t)} ${e.kind} ${e.text || ''}`;
+  box.hidden = false;
+  v.play().catch(() => {});
+}
+
+$('#rp-play').onclick = () => setPlaying(!rp.playing);
+$('#rp-seek').oninput = (e) => replaySeek(Number(e.target.value));
+$('#rp-speed').onchange = (e) => { rp.speed = Number(e.target.value); };
+$('#rp-prev').onclick = () => stepEvent(-1);
+$('#rp-next').onclick = () => stepEvent(1);
+$('#rp-video-close').onclick = () => { const b = $('#rp-video'); b.hidden = true; b.querySelector('video').pause(); };
+$('#rp-close').onclick = () => {
+  const u = new URL(location.href);
+  u.searchParams.delete('replay');
+  u.searchParams.delete('t');
+  location.href = u.pathname + u.search;  // back to the live view, drawn afresh
+};
+$('#logs').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-t]');
+  if (row && state.replay) replaySeek(Number(row.dataset.t));
+});
+document.addEventListener('keydown', (e) => {
+  if (!state.replay || e.target.matches('input, textarea, select')) return;
+  if (e.key === ' ') { e.preventDefault(); setPlaying(!rp.playing); }
+  if (e.key === '[') stepEvent(-1);
+  if (e.key === ']') stepEvent(1);
+});
+requestAnimationFrame(replayTick);
+
+// links: /?attach=<run> (or latest) watches a run; /?replay=<id>[&t=seconds] plays a recording
 {
   const url = new URL(location.href);
   const run = url.searchParams.get('attach');
-  if (run !== null) {
+  const replay = url.searchParams.get('replay');
+  if (replay) {
+    const t = url.searchParams.get('t');
+    openReplay(replay, t === null ? null : Number(t));
+  } else if (run !== null) {
     url.searchParams.delete('attach');
     history.replaceState(null, '', url.pathname + url.search + url.hash);
     watchRun(run || 'latest');
   }
+  listReplays();
 }

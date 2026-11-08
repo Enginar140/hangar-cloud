@@ -19,7 +19,7 @@ from hangar.mavlink import CommandError
 from hangar.supervisor import SupervisorError
 from pydantic import BaseModel
 
-from . import __version__
+from . import __version__, replays
 from .session import Session, list_scenarios
 
 WEB = Path(__file__).with_name("web")
@@ -152,6 +152,28 @@ def create_app(session: Session, token: str) -> FastAPI:
             return {"ok": True, "watching": await session.attach(body.run)}
         except SupervisorError as e:
             raise fail(e) from e
+
+    @app.get("/api/replays")
+    async def replay_list():
+        items = await asyncio.to_thread(replays.list_replays, session.replay_dirs)
+        return {"replays": items, "dirs": [str(d) for d in session.replay_dirs]}
+
+    @app.get("/api/replay")
+    async def replay_data(id: str):  # noqa: A002 - the query parameter's name
+        try:
+            body = await asyncio.to_thread(replays.load, id, session.replay_dirs)
+        except KeyError:
+            raise HTTPException(404, "no such replay") from None
+        except (ValueError, OSError) as e:
+            raise HTTPException(400, str(e)) from e
+        return Response(body, media_type="application/json", headers={"Content-Encoding": "gzip"})
+
+    @app.get("/api/replay/file")
+    async def replay_file(id: str, name: str):  # noqa: A002
+        try:
+            return FileResponse(replays.side_file(id, name, session.replay_dirs))
+        except KeyError:
+            raise HTTPException(404, "no such file") from None
 
     @app.post("/api/stop")
     async def stop():

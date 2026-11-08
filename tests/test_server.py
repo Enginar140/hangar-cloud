@@ -242,3 +242,52 @@ def test_another_hangar_run_blocks_the_start(client, session):
     finally:
         proc.kill()
         proc.wait()
+
+
+def test_replays_list_load_and_stay_inside(session, tmp_path):
+    import gzip as gz
+
+    root = tmp_path / "kayitlar"
+    (root / "h8_t7").mkdir(parents=True)
+    data = {"version": 1, "origin": {"lat": 41.5, "lon": 36.1, "alt": 0}, "tracks": {}, "events": [], "zones": []}
+    (root / "h8_t7" / "replay.json.gz").write_bytes(gz.compress(json.dumps(data).encode()))
+    (root / "h8_t7" / "olay_01.mp4").write_bytes(b"\0" * 1000)
+    (root / "plain").mkdir()
+    (root / "plain" / "replay.json").write_text(json.dumps(data))
+    (root / "old").mkdir()
+    (root / "old" / "replay.json").write_text(json.dumps({**data, "version": 2}))
+    (tmp_path / "secret.mp4").write_bytes(b"x")
+    (root / "h8_t7" / "link.mp4").symlink_to(tmp_path / "secret.mp4")
+    session.replay_dirs = [root]
+    c = TestClient(create_app(session, TOKEN))
+    c.cookies.set("hangar_cloud", TOKEN)
+
+    ids = {r["id"]: r["name"] for r in c.get("/api/replays").json()["replays"]}
+    assert ids == {"h8_t7/replay.json.gz": "h8_t7", "plain/replay.json": "plain", "old/replay.json": "old"}
+    r = c.get("/api/replay", params={"id": "h8_t7/replay.json.gz"})
+    assert r.status_code == 200 and r.json()["origin"]["lat"] == 41.5  # decoded from gzip by the client
+    assert c.get("/api/replay", params={"id": "plain/replay.json"}).json()["version"] == 1
+    assert c.get("/api/replay", params={"id": "old/replay.json"}).status_code == 400
+    for bad in ("../secret.mp4", "/etc/passwd", "h8_t7/../../x/replay.json", "h8_t7/olay_01.mp4", "run:../x"):
+        assert c.get("/api/replay", params={"id": bad}).status_code == 404, bad
+    f = c.get("/api/replay/file", params={"id": "h8_t7/replay.json.gz", "name": "olay_01.mp4"},
+              headers={"Range": "bytes=0-99"})
+    assert f.status_code == 206 and len(f.content) == 100
+    for name in ("../../secret.mp4", "link.mp4", ".hidden", "nothing.mp4"):
+        assert c.get("/api/replay/file", params={"id": "h8_t7/replay.json.gz", "name": name}).status_code == 404
+
+
+def test_hangar_runs_with_tracks_are_replays(session):
+    from hangar import paths
+    from hangar.mavlink import Telemetry
+    from hangar.track import TrackRecorder
+
+    run = paths.runs_dir() / "20261108-120000-duel"
+    rec = TrackRecorder(run, 0)
+    rec.sample("plane", Telemetry(lat=-35.0, lon=149.0, alt_rel=10.0, mode="AUTO", armed=True))
+    rec.close()
+    c = TestClient(create_app(session, TOKEN))
+    c.cookies.set("hangar_cloud", TOKEN)
+    assert [r["id"] for r in c.get("/api/replays").json()["replays"]] == ["run:20261108-120000-duel"]
+    data = c.get("/api/replay", params={"id": "run:20261108-120000-duel"}).json()
+    assert data["tracks"]["plane"]["h"] == [10.0]

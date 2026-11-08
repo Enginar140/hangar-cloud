@@ -61,7 +61,7 @@ hangar-cloud serve
 It prints a link with a login token:
 
 ```
-hangar-cloud 0.2.5
+hangar-cloud 0.2.6
   open  http://127.0.0.1:8080/?token=6vQ...
 ```
 
@@ -168,6 +168,54 @@ the run ends, the page goes back to idle.
 - Scripts: `POST /api/attach {"run": "latest"}`; *Stop watching* (or `POST /api/stop`) only stops
   watching, the run goes on.
 
+### Replays
+
+Recorded runs can be **played back** in the 3D view and on the map, with a time bar: play, pause,
+×0.25 to ×16, jump to any moment or from event to event (`[` `]`, Space plays). The events are
+marks on the time bar and lines in the Logs tab (click one to jump there); a panel shows the
+selected vehicle's recorded values at that moment; an event's video opens when playback reaches it.
+No simulation runs for this: the browser draws the recording, with a simple aircraft per vehicle,
+the paths flown and the recording's zones.
+
+Where replays come from:
+
+- **Hangar's own runs** (Hangar 0.3.8 and later record their tracks): listed by themselves.
+- **Replay files** from other programs: start the server with `--replay-dir DIR` (more than once
+  for more folders). Every `replay.json`, `replay.json.gz` or `*.replay.json[.gz]` up to three
+  folders deep is listed. Only files inside these folders are served; event videos must sit next
+  to their replay file.
+
+With nothing running, the empty view lists them under *Recorded runs*. A link opens one at a given
+second: `/?replay=h8_t7/replay.json.gz&t=289` (the path relative to the replay folder), or
+`/?replay=run:<run folder name>`.
+
+The format (JSON, gzip allowed):
+
+```js
+{
+  "version": 1,
+  "name": "h8_t7",                                   // optional
+  "origin": {"lat": 41.51, "lon": 36.12, "alt": 0},   // where n = e = 0 is
+  "world": "savasan_qr",                              // optional, for information
+  "tracks": {
+    "chaser": {
+      "team": "blue", "model": "skywalker_x8",        // optional; the model picks the shape
+      "t": [0.0, 0.04, ...],                           // seconds, increasing
+      "n": [...], "e": [...], "h": [...],              // metres north, east, up (from origin)
+      "yaw": [...], "roll": [...], "pitch": [...],     // degrees; null: level / from the direction of travel
+      "fields": {"phase": ["SEARCH", ...]}             // optional, any per-sample values to show
+    }
+  },
+  "events": [{"t": 289.2, "kind": "lock", "who": "chaser", "target": "red2", "text": "…", "video": "lock_01.mp4"}],
+  "zones": [{"name": "arena", "kind": "boundary", "poly": [[n, e], ...], "floor": 15, "ceil": 400},
+            {"name": "nofly_1", "kind": "nofly", "poly": [[n, e], ...], "t_on": 117.1}]
+}
+```
+
+Every column of a track has the same length as its `t`. `kind` of an event is free text; a zone is
+`boundary` or anything else (drawn as a no-fly zone), shown from `t_on` on (always without it).
+Unknown fields are ignored. Videos should be H.264 MP4 so every browser plays them.
+
 ### Next to another simulation
 
 Only one Hangar simulation runs at a time on the machine: while another one is going on (started
@@ -230,6 +278,8 @@ curl -s -H "$H" -X POST http://127.0.0.1:8080/api/stop
 | `POST /api/scenario` | `{"yaml": "..."}` or `{"data": {...}}`: replace the scenario; returns the preflight result |
 | `POST /api/scenario/load` | `{"id": "saved:NAME"}` or `{"id": "example:runway-3d"}` |
 | `POST /api/start`, `/api/stop` | start or stop it (stop only stops watching a run started elsewhere) |
+| `GET /api/replays` | the recorded runs: `id`, `name`, `source`, `size`, `time` |
+| `GET /api/replay?id=ID` | one of them, as replay JSON (Hangar's runs converted on the fly) |
 | `POST /api/attach` | `{"run": "latest"}` or a run folder's name: watch a run another program started |
 | `POST /api/vehicles/NAME/command` | `{"line": "mode GUIDED"}`: any command of the command line |
 | `GET /api/info` | everything the page shows on load |

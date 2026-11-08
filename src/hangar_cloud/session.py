@@ -104,8 +104,10 @@ def scenario_path(sid: str) -> Path:
 
 
 class Session:
-    def __init__(self, settings: Settings, gz_python: str | None, gazebo_window: bool = False) -> None:
+    def __init__(self, settings: Settings, gz_python: str | None, gazebo_window: bool = False,
+                 replay_dirs: list[Path] | None = None) -> None:
         self.settings = settings
+        self.replay_dirs = list(replay_dirs or [])  # recorded runs to play back, see replays.py
         self.catalog = Catalog(settings)
         self.gz_python = gz_python
         self.hub = Hub()

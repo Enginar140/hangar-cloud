@@ -124,6 +124,30 @@ export class VehicleMap {
     }
   }
 
+  setTrail(name, latlngs) {
+    this.trails.get(name)?.setLatLngs(latlngs);
+  }
+
+  // a replay's areas: [{kind, latlngs, on}] (on: shown from that time on, null: always)
+  setZones(zones) {
+    for (const z of this.zones || []) z.layer.remove();
+    this.zones = zones.map((z) => {
+      const nofly = z.kind !== 'boundary';
+      const layer = L.polygon(z.latlngs, {
+        color: nofly ? '#ff4d5e' : '#4da3ff', weight: 2, fillOpacity: nofly ? 0.2 : 0.04, interactive: false,
+      }).addTo(this.map);
+      return { layer, on: z.on };
+    });
+  }
+
+  setZoneTime(t) {
+    for (const z of this.zones || []) {
+      const show = z.on == null || t >= z.on;
+      if (show && !this.map.hasLayer(z.layer)) z.layer.addTo(this.map);
+      if (!show && this.map.hasLayer(z.layer)) z.layer.remove();
+    }
+  }
+
   clearTrails() {
     for (const line of this.trails.values()) line.setLatLngs([]);
   }
